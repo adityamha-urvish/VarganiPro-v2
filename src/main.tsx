@@ -1,13 +1,15 @@
 import { StrictMode } from "react";
-import "@/supabase/env";
 import { createRoot } from "react-dom/client";
 import { RouterProvider } from "react-router-dom";
 
 import "./index.css";
+import { AppProviders } from "@/app/providers/AppProviders";
 import { router } from "@/app/router/router";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <RouterProvider router={router} />
+    <AppProviders>
+      <RouterProvider router={router} />
+    </AppProviders>
   </StrictMode>
 );
