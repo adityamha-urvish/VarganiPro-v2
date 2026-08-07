@@ -1,8 +1,22 @@
-import { createBrowserRouter } from "react-router-dom";
+import { createBrowserRouter, Navigate } from "react-router-dom";
 
-import { AppLayout } from "@/app/layouts/AppLayout";
 import { LoginPage } from "@/features/auth/pages/login-page";
 import { DashboardPage } from "@/features/dashboard/pages/dashboard-page";
+import { AppLayout } from "@/app/layouts/AppLayout";
+
+function ProtectedRoute({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const user = localStorage.getItem("vp_user");
+
+  if (!user) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
+}
 
 export const router = createBrowserRouter([
   {
@@ -10,12 +24,13 @@ export const router = createBrowserRouter([
     element: <LoginPage />,
   },
   {
-    element: <AppLayout />,
-    children: [
-      {
-        path: "/dashboard",
-        element: <DashboardPage />,
-      },
-    ],
+    path: "/dashboard",
+    element: (
+      <ProtectedRoute>
+        <AppLayout>
+          <DashboardPage />
+        </AppLayout>
+      </ProtectedRoute>
+    ),
   },
 ]);
