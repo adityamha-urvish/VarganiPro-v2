@@ -1,0 +1,104 @@
+===== router.tsx =====
+import { createBrowserRouter, Navigate } from "react-router-dom";
+
+import { LoginPage } from "@/features/auth/pages/login-page";
+import { DashboardPage } from "@/features/dashboard/pages/dashboard-page";
+import { AppLayout } from "@/app/layouts/AppLayout";
+
+function ProtectedRoute({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const user = localStorage.getItem("vp_user");
+
+  if (!user) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+export const router = createBrowserRouter([
+  {
+    path: "/",
+    element: <LoginPage />,
+  },
+  {
+    path: "/dashboard",
+    element: (
+      <ProtectedRoute>
+        <AppLayout>
+          <DashboardPage />
+        </AppLayout>
+      </ProtectedRoute>
+    ),
+  },
+]);
+
+===== AppLayout.tsx =====
+import type { ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
+
+interface Props {
+  children: ReactNode;
+}
+
+export function AppLayout({ children }: Props) {
+  const navigate = useNavigate();
+
+  function logout() {
+    localStorage.removeItem("vp_user");
+    navigate("/");
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <header className="border-b bg-white">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
+          <h1 className="text-xl font-bold">
+            🛕 VarganiPro
+          </h1>
+
+          <button
+            onClick={logout}
+            className="rounded bg-red-600 px-4 py-2 text-white hover:bg-red-700"
+          >
+            Logout
+          </button>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-7xl p-6">
+        {children}
+      </main>
+    </div>
+  );
+}
+
+===== auth.types.ts =====
+export type UserRole =
+  | "super_admin"
+  | "admin"
+  | "treasurer"
+  | "volunteer";
+
+export interface AuthUser {
+  id: string;
+  fullName: string;
+  mobile: string;
+  role: UserRole;
+  isActive: boolean;
+}
+
+export interface LoginRequest {
+  mobile: string;
+  pin: string;
+}
+
+export interface AuthSession {
+  user: AuthUser;
+  accessToken: string;
+}
+
+===== auth.api.ts =====

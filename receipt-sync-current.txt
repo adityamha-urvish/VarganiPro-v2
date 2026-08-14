@@ -1,7 +1,7 @@
 import { supabase } from "@/supabase/client";
 
 import {
-  getLocalReceipts,
+  getPendingReceipts,
   updateLocalReceiptSyncState,
   type LocalReceipt,
 } from "./offline-db";
@@ -27,51 +27,55 @@ interface SyncResponse {
 export async function syncNextReceipt(
   receiptBookId: string
 ): Promise<ReceiptSyncResult | null> {
-  /*
-   * Sync Next must consider BOTH pending receipts and
-   * previously-conflicted receipts.
-   *
-   * A receipt-number conflict is not permanent. Once the
-   * missing previous receipt has synchronized, the conflicted
-   * receipt becomes eligible for retry.
-   */
-  const localReceipts = await getLocalReceipts(receiptBookId);
+  const pendingReceipts =
+    await getPendingReceipts(
+      receiptBookId
+    );
 
-  const syncCandidates = localReceipts.filter(
-    (receipt) =>
-      receipt.syncStatus === "pending" ||
-      receipt.syncStatus === "conflict"
-  );
-
-  if (syncCandidates.length === 0) {
+  if (pendingReceipts.length === 0) {
     return null;
   }
 
   /*
-   * Always synchronize in receipt-number order.
-   * The server enforces sequential receipt numbers.
+   * Always synchronize in receipt-number
+   * order. This is required because the
+   * server enforces sequential receipt
+   * numbers.
    */
-  syncCandidates.sort(
-    (a, b) => a.receiptNumber - b.receiptNumber
+  pendingReceipts.sort(
+    (a, b) =>
+      a.receiptNumber -
+      b.receiptNumber
   );
 
-  const receipt = syncCandidates[0];
+  const receipt =
+    pendingReceipts[0];
 
-  const attemptTime = new Date().toISOString();
-  const nextAttempt = receipt.syncAttempts + 1;
+  const attemptTime =
+    new Date().toISOString();
+
+  const nextAttempt =
+    receipt.syncAttempts + 1;
 
   console.log(
     "SYNCING RECEIPT:",
-    receipt.receiptNumber,
-    receipt.syncStatus
+    receipt.receiptNumber
   );
 
+  /*
+   * Mark the receipt as syncing before
+   * contacting Supabase.
+   */
   await updateLocalReceiptSyncState(
     receipt.clientReceiptId,
     "syncing",
     {
-      syncAttempts: nextAttempt,
-      lastSyncAttemptAt: attemptTime,
+      syncAttempts:
+        nextAttempt,
+
+      lastSyncAttemptAt:
+        attemptTime,
+
       lastSyncError: null,
     }
   );
@@ -84,44 +88,68 @@ export async function syncNextReceipt(
     {
       p_collection_session_id:
         receipt.collectionSessionId,
+
       p_property_id:
         receipt.propertyId,
+
       p_receipt_number:
         receipt.receiptNumber,
+
       p_donor_name:
         receipt.donorName,
+
       p_donor_mobile:
         receipt.donorMobile,
+
       p_amount:
         receipt.amount,
+
       p_payment_mode:
         receipt.paymentMode,
+
       p_payment_reference:
         receipt.paymentReference,
+
       p_notes:
         receipt.notes,
+
       p_client_receipt_id:
         receipt.clientReceiptId,
+
       p_offline_created_at:
         receipt.offlineCreatedAt,
     }
   );
 
-  console.log("SYNC RESPONSE:", data);
-  console.log("SYNC ERROR:", error);
+  console.log(
+    "SYNC RESPONSE:",
+    data
+  );
+
+  console.log(
+    "SYNC ERROR:",
+    error
+  );
 
   /*
    * Network / Supabase RPC error.
-   * Keep the receipt pending so it can be retried.
+   *
+   * Keep the receipt pending so it can
+   * safely be retried later.
    */
   if (error) {
     await updateLocalReceiptSyncState(
       receipt.clientReceiptId,
       "pending",
       {
-        syncAttempts: nextAttempt,
-        lastSyncAttemptAt: attemptTime,
-        lastSyncError: error.message,
+        syncAttempts:
+          nextAttempt,
+
+        lastSyncAttemptAt:
+          attemptTime,
+
+        lastSyncError:
+          error.message,
       }
     );
 
@@ -134,25 +162,30 @@ export async function syncNextReceipt(
     };
   }
 
-  const response = data as SyncResponse;
+  const response =
+    data as SyncResponse;
 
   /*
-   * Receipt-number conflict.
+   * Server-side receipt-number conflict.
    *
-   * Keep it as conflict. The important change is that
-   * syncNextReceipt can select it again on a later click,
-   * after the previous receipt has synchronized.
+   * Do NOT continue to the next receipt.
    */
   if (
-    response.sync_status === "conflict" ||
-    response.reason === "receipt_number_mismatch"
+    response.sync_status ===
+      "conflict" ||
+    response.reason ===
+      "receipt_number_mismatch"
   ) {
     await updateLocalReceiptSyncState(
       receipt.clientReceiptId,
       "conflict",
       {
-        syncAttempts: nextAttempt,
-        lastSyncAttemptAt: attemptTime,
+        syncAttempts:
+          nextAttempt,
+
+        lastSyncAttemptAt:
+          attemptTime,
+
         lastSyncError:
           response.message ??
           response.reason ??
@@ -170,16 +203,24 @@ export async function syncNextReceipt(
   }
 
   /*
-   * Successful server response, including the idempotent
+   * Successful server response.
+   *
+   * This includes the idempotent
    * already_exists case.
    */
-  if (response.success === true) {
+  if (
+    response.success === true
+  ) {
     await updateLocalReceiptSyncState(
       receipt.clientReceiptId,
       "synced",
       {
-        syncAttempts: nextAttempt,
-        lastSyncAttemptAt: attemptTime,
+        syncAttempts:
+          nextAttempt,
+
+        lastSyncAttemptAt:
+          attemptTime,
+
         lastSyncError: null,
       }
     );
@@ -188,7 +229,8 @@ export async function syncNextReceipt(
       receipt,
       success: true,
       alreadyExists:
-        response.already_exists === true,
+        response.already_exists ===
+        true,
       conflict: false,
       response,
     };
@@ -196,7 +238,9 @@ export async function syncNextReceipt(
 
   /*
    * Unexpected server response.
-   * Treat it as retryable.
+   * Treat it as retryable rather than
+   * incorrectly marking the receipt
+   * as synced.
    */
   const unexpectedMessage =
     response.message ??
@@ -206,9 +250,14 @@ export async function syncNextReceipt(
     receipt.clientReceiptId,
     "pending",
     {
-      syncAttempts: nextAttempt,
-      lastSyncAttemptAt: attemptTime,
-      lastSyncError: unexpectedMessage,
+      syncAttempts:
+        nextAttempt,
+
+      lastSyncAttemptAt:
+        attemptTime,
+
+      lastSyncError:
+        unexpectedMessage,
     }
   );
 

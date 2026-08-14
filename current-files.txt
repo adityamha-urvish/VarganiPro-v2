@@ -1,0 +1,1136 @@
+===== offline-db.ts =====
+const DB_NAME = "varganipro-offline";
+const DB_VERSION = 1;
+
+const RECEIPTS_STORE = "receipts";
+const META_STORE = "metadata";
+
+export interface LocalReceipt {
+  clientReceiptId: string;
+
+  organizationId: string;
+  eventId: string;
+  collectionSessionId: string;
+  receiptBookId: string;
+  volunteerId: string;
+
+  propertyId: string | null;
+
+  receiptNumber: number;
+
+  donorName: string;
+  donorMobile: string | null;
+
+  amount: number;
+
+  paymentMode:
+    | "cash"
+    | "upi"
+    | "cheque"
+    | "bank_transfer";
+
+  paymentReference: string | null;
+  notes: string | null;
+
+  offlineCreatedAt: string;
+
+  syncStatus:
+    | "pending"
+    | "syncing"
+    | "synced"
+    | "conflict";
+
+  syncAttempts: number;
+  lastSyncAttemptAt: string | null;
+  lastSyncError: string | null;
+
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OfflineBookState {
+  receiptBookId: string;
+
+  organizationId: string;
+  eventId: string;
+  collectionSessionId: string;
+  volunteerId: string;
+
+  bookNumber: string;
+  prefix: string;
+
+  startNumber: number;
+  endNumber: number;
+
+  nextLocalNumber: number;
+
+  updatedAt: string;
+}
+
+function openDatabase(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(
+      DB_NAME,
+      DB_VERSION
+    );
+
+    request.onerror = () => {
+      reject(
+        request.error ??
+          new Error(
+            "Unable to open offline database"
+          )
+      );
+    };
+
+    request.onupgradeneeded = () => {
+      const db = request.result;
+
+      if (
+        !db.objectStoreNames.contains(
+          RECEIPTS_STORE
+        )
+      ) {
+        const receipts =
+          db.createObjectStore(
+            RECEIPTS_STORE,
+            {
+              keyPath:
+                "clientReceiptId",
+            }
+          );
+
+        receipts.createIndex(
+          "byReceiptBook",
+          "receiptBookId",
+          { unique: false }
+        );
+
+        receipts.createIndex(
+          "bySyncStatus",
+          "syncStatus",
+          { unique: false }
+        );
+
+        receipts.createIndex(
+          "byReceiptNumber",
+          [
+            "receiptBookId",
+            "receiptNumber",
+          ],
+          { unique: true }
+        );
+      }
+
+      if (
+        !db.objectStoreNames.contains(
+          META_STORE
+        )
+      ) {
+        db.createObjectStore(
+          META_STORE,
+          {
+            keyPath:
+              "receiptBookId",
+          }
+        );
+      }
+    };
+
+    request.onsuccess = () => {
+      resolve(request.result);
+    };
+  });
+}
+
+/* -------------------------------------------------
+   RECEIPTS
+------------------------------------------------- */
+
+export async function saveLocalReceipt(
+  receipt: LocalReceipt
+): Promise<void> {
+  const db = await openDatabase();
+
+  return new Promise(
+    (resolve, reject) => {
+      const transaction =
+        db.transaction(
+          RECEIPTS_STORE,
+          "readwrite"
+        );
+
+      transaction
+        .objectStore(RECEIPTS_STORE)
+        .put(receipt);
+
+      transaction.oncomplete =
+        () => {
+          db.close();
+          resolve();
+        };
+
+      transaction.onerror = () => {
+        db.close();
+
+        reject(
+          transaction.error ??
+            new Error(
+              "Unable to save local receipt"
+            )
+        );
+      };
+
+      transaction.onabort = () => {
+        db.close();
+
+        reject(
+          transaction.error ??
+            new Error(
+              "Local receipt save was aborted"
+            )
+        );
+      };
+    }
+  );
+}
+
+export async function getLocalReceipt(
+  clientReceiptId: string
+): Promise<LocalReceipt | null> {
+  const db = await openDatabase();
+
+  return new Promise(
+    (resolve, reject) => {
+      const transaction =
+        db.transaction(
+          RECEIPTS_STORE,
+          "readonly"
+        );
+
+      const request =
+        transaction
+          .objectStore(
+            RECEIPTS_STORE
+          )
+          .get(clientReceiptId);
+
+      request.onsuccess = () => {
+        db.close();
+
+        resolve(
+          request.result ?? null
+        );
+      };
+
+      request.onerror = () => {
+        db.close();
+
+        reject(
+          request.error ??
+            new Error(
+              "Unable to read local receipt"
+            )
+        );
+      };
+    }
+  );
+}
+
+export async function getPendingReceipts(
+  receiptBookId: string
+): Promise<LocalReceipt[]> {
+  const db = await openDatabase();
+
+  return new Promise(
+    (resolve, reject) => {
+      const transaction =
+        db.transaction(
+          RECEIPTS_STORE,
+          "readonly"
+        );
+
+      const request =
+        transaction
+          .objectStore(
+            RECEIPTS_STORE
+          )
+          .index("byReceiptBook")
+          .getAll(receiptBookId);
+
+      request.onsuccess = () => {
+        db.close();
+
+        const receipts =
+          (
+            request.result as LocalReceipt[]
+          ).filter(
+            (receipt) =>
+              receipt.syncStatus ===
+                "pending" ||
+              receipt.syncStatus ===
+                "syncing"
+          );
+
+        receipts.sort(
+          (a, b) =>
+            a.receiptNumber -
+            b.receiptNumber
+        );
+
+        resolve(receipts);
+      };
+
+      request.onerror = () => {
+        db.close();
+
+        reject(
+          request.error ??
+            new Error(
+              "Unable to read pending receipts"
+            )
+        );
+      };
+    }
+  );
+}
+
+/* -------------------------------------------------
+   BOOK STATE
+------------------------------------------------- */
+
+export async function saveBookState(
+  state: OfflineBookState
+): Promise<void> {
+  const db = await openDatabase();
+
+  return new Promise(
+    (resolve, reject) => {
+      const transaction =
+        db.transaction(
+          META_STORE,
+          "readwrite"
+        );
+
+      transaction
+        .objectStore(META_STORE)
+        .put(state);
+
+      transaction.oncomplete =
+        () => {
+          db.close();
+          resolve();
+        };
+
+      transaction.onerror = () => {
+        db.close();
+
+        reject(
+          transaction.error ??
+            new Error(
+              "Unable to save offline book state"
+            )
+        );
+      };
+
+      transaction.onabort = () => {
+        db.close();
+
+        reject(
+          transaction.error ??
+            new Error(
+              "Offline book-state save was aborted"
+            )
+        );
+      };
+    }
+  );
+}
+
+export async function getBookState(
+  receiptBookId: string
+): Promise<OfflineBookState | null> {
+  const db = await openDatabase();
+
+  return new Promise(
+    (resolve, reject) => {
+      const transaction =
+        db.transaction(
+          META_STORE,
+          "readonly"
+        );
+
+      const request =
+        transaction
+          .objectStore(
+            META_STORE
+          )
+          .get(receiptBookId);
+
+      request.onsuccess = () => {
+        db.close();
+
+        resolve(
+          request.result ?? null
+        );
+      };
+
+      request.onerror = () => {
+        db.close();
+
+        reject(
+          request.error ??
+            new Error(
+              "Unable to read offline book state"
+            )
+        );
+      };
+    }
+  );
+}
+
+/* -------------------------------------------------
+   ATOMIC LOCAL RECEIPT CREATION
+------------------------------------------------- */
+
+/**
+ * Creates a local receipt and advances
+ * the receipt-book counter in ONE
+ * IndexedDB transaction.
+ *
+ * Either both changes are committed,
+ * or neither change is committed.
+ */
+export async function createLocalReceiptAtomic(
+  receipt: LocalReceipt,
+  nextBookState: OfflineBookState
+): Promise<void> {
+  const db = await openDatabase();
+
+  return new Promise(
+    (resolve, reject) => {
+      const transaction =
+        db.transaction(
+          [
+            RECEIPTS_STORE,
+            META_STORE,
+          ],
+          "readwrite"
+        );
+
+      const receiptsStore =
+        transaction.objectStore(
+          RECEIPTS_STORE
+        );
+
+      const metadataStore =
+        transaction.objectStore(
+          META_STORE
+        );
+
+      receiptsStore.put(receipt);
+
+      metadataStore.put(
+        nextBookState
+      );
+
+      transaction.oncomplete =
+        () => {
+          db.close();
+          resolve();
+        };
+
+      transaction.onerror = () => {
+        db.close();
+
+        reject(
+          transaction.error ??
+            new Error(
+              "Unable to atomically create local receipt"
+            )
+        );
+      };
+
+      transaction.onabort = () => {
+        db.close();
+
+        reject(
+          transaction.error ??
+            new Error(
+              "Local receipt transaction was aborted"
+            )
+        );
+      };
+    }
+  );
+}
+
+/* -------------------------------------------------
+   SYNC STATE
+------------------------------------------------- */
+
+export async function updateLocalReceiptSyncState(
+  clientReceiptId: string,
+  syncStatus:
+    | "pending"
+    | "syncing"
+    | "synced"
+    | "conflict",
+  options?: {
+    syncAttempts?: number;
+    lastSyncAttemptAt?: string | null;
+    lastSyncError?: string | null;
+  }
+): Promise<void> {
+  const db = await openDatabase();
+
+  return new Promise(
+    (resolve, reject) => {
+      const transaction =
+        db.transaction(
+          RECEIPTS_STORE,
+          "readwrite"
+        );
+
+      const store =
+        transaction.objectStore(
+          RECEIPTS_STORE
+        );
+
+      const request =
+        store.get(clientReceiptId);
+
+      request.onsuccess = () => {
+        const receipt =
+          request.result as
+            | LocalReceipt
+            | undefined;
+
+        if (!receipt) {
+          transaction.abort();
+
+          reject(
+            new Error(
+              `Local receipt ${clientReceiptId} was not found.`
+            )
+          );
+
+          return;
+        }
+
+        const updatedReceipt: LocalReceipt =
+          {
+            ...receipt,
+
+            syncStatus,
+
+            syncAttempts:
+              options?.syncAttempts ??
+              receipt.syncAttempts,
+
+            lastSyncAttemptAt:
+              options?.lastSyncAttemptAt ??
+              receipt.lastSyncAttemptAt,
+
+            lastSyncError:
+              options?.lastSyncError ??
+              receipt.lastSyncError,
+
+            updatedAt:
+              new Date().toISOString(),
+          };
+
+        store.put(
+          updatedReceipt
+        );
+      };
+
+      request.onerror = () => {
+        transaction.abort();
+
+        reject(
+          request.error ??
+            new Error(
+              "Unable to read local receipt for sync-state update"
+            )
+        );
+      };
+
+      transaction.oncomplete =
+        () => {
+          db.close();
+          resolve();
+        };
+
+      transaction.onerror = () => {
+        db.close();
+
+        reject(
+          transaction.error ??
+            new Error(
+              "Unable to update local receipt sync state"
+            )
+        );
+      };
+
+      transaction.onabort = () => {
+        db.close();
+
+        reject(
+          transaction.error ??
+            new Error(
+              "Local receipt sync-state transaction was aborted"
+            )
+        );
+      };
+    }
+  );
+}
+
+===== receipt-store.ts =====
+import {
+  createLocalReceiptAtomic,
+  getBookState,
+  type LocalReceipt,
+} from "./offline-db";
+
+export interface CreateLocalReceiptInput {
+  receiptBookId: string;
+
+  organizationId: string;
+  eventId: string;
+  collectionSessionId: string;
+  volunteerId: string;
+
+  propertyId: string | null;
+
+  donorName: string;
+  donorMobile: string | null;
+
+  amount: number;
+
+  paymentMode:
+    | "cash"
+    | "upi"
+    | "cheque"
+    | "bank_transfer";
+
+  paymentReference: string | null;
+
+  notes: string | null;
+}
+
+function createClientReceiptId(): string {
+  return crypto.randomUUID();
+}
+
+export async function createLocalReceipt(
+  input: CreateLocalReceiptInput
+): Promise<LocalReceipt> {
+  const bookState =
+    await getBookState(
+      input.receiptBookId
+    );
+
+  if (!bookState) {
+    throw new Error(
+      "Receipt book is not available offline on this device."
+    );
+  }
+
+  const receiptNumber =
+    bookState.nextLocalNumber;
+
+  if (
+    receiptNumber <
+      bookState.startNumber ||
+    receiptNumber >
+      bookState.endNumber
+  ) {
+    throw new Error(
+      "Receipt book has no more available receipt numbers."
+    );
+  }
+
+  const now =
+    new Date().toISOString();
+
+  const receipt: LocalReceipt = {
+    clientReceiptId:
+      createClientReceiptId(),
+
+    organizationId:
+      input.organizationId,
+
+    eventId:
+      input.eventId,
+
+    collectionSessionId:
+      input.collectionSessionId,
+
+    receiptBookId:
+      input.receiptBookId,
+
+    volunteerId:
+      input.volunteerId,
+
+    propertyId:
+      input.propertyId,
+
+    receiptNumber,
+
+    donorName:
+      input.donorName,
+
+    donorMobile:
+      input.donorMobile,
+
+    amount:
+      input.amount,
+
+    paymentMode:
+      input.paymentMode,
+
+    paymentReference:
+      input.paymentReference,
+
+    notes:
+      input.notes,
+
+    offlineCreatedAt: now,
+
+    syncStatus: "pending",
+
+    syncAttempts: 0,
+
+    lastSyncAttemptAt: null,
+
+    lastSyncError: null,
+
+    createdAt: now,
+
+    updatedAt: now,
+  };
+
+  const nextBookState = {
+    ...bookState,
+
+    nextLocalNumber:
+      receiptNumber + 1,
+
+    updatedAt: now,
+  };
+
+  await createLocalReceiptAtomic(
+    receipt,
+    nextBookState
+  );
+
+  return receipt;
+}
+
+===== receipt-sync.ts =====
+import { supabase } from "@/supabase/client";
+
+import {
+  getPendingReceipts,
+  updateLocalReceiptSyncState,
+  type LocalReceipt,
+} from "./offline-db";
+
+export interface ReceiptSyncResult {
+  receipt: LocalReceipt;
+  success: boolean;
+  alreadyExists: boolean;
+  conflict: boolean;
+  response: unknown;
+}
+
+interface SyncResponse {
+  success?: boolean;
+  already_exists?: boolean;
+  sync_status?: string;
+  reason?: string;
+  message?: string;
+  receipt_number?: number;
+  next_receipt_number?: number;
+}
+
+export async function syncNextReceipt(
+  receiptBookId: string
+): Promise<ReceiptSyncResult | null> {
+  const pendingReceipts =
+    await getPendingReceipts(
+      receiptBookId
+    );
+
+  if (pendingReceipts.length === 0) {
+    return null;
+  }
+
+  /*
+   * Always synchronize in receipt-number
+   * order. This is required because the
+   * server enforces sequential receipt
+   * numbers.
+   */
+  pendingReceipts.sort(
+    (a, b) =>
+      a.receiptNumber -
+      b.receiptNumber
+  );
+
+  const receipt =
+    pendingReceipts[0];
+
+  const attemptTime =
+    new Date().toISOString();
+
+  const nextAttempt =
+    receipt.syncAttempts + 1;
+
+  console.log(
+    "SYNCING RECEIPT:",
+    receipt.receiptNumber
+  );
+
+  /*
+   * Mark the receipt as syncing before
+   * contacting Supabase.
+   */
+  await updateLocalReceiptSyncState(
+    receipt.clientReceiptId,
+    "syncing",
+    {
+      syncAttempts:
+        nextAttempt,
+
+      lastSyncAttemptAt:
+        attemptTime,
+
+      lastSyncError: null,
+    }
+  );
+
+  const {
+    data,
+    error,
+  } = await supabase.rpc(
+    "sync_offline_receipt",
+    {
+      p_collection_session_id:
+        receipt.collectionSessionId,
+
+      p_property_id:
+        receipt.propertyId,
+
+      p_receipt_number:
+        receipt.receiptNumber,
+
+      p_donor_name:
+        receipt.donorName,
+
+      p_donor_mobile:
+        receipt.donorMobile,
+
+      p_amount:
+        receipt.amount,
+
+      p_payment_mode:
+        receipt.paymentMode,
+
+      p_payment_reference:
+        receipt.paymentReference,
+
+      p_notes:
+        receipt.notes,
+
+      p_client_receipt_id:
+        receipt.clientReceiptId,
+
+      p_offline_created_at:
+        receipt.offlineCreatedAt,
+    }
+  );
+
+  console.log(
+    "SYNC RESPONSE:",
+    data
+  );
+
+  console.log(
+    "SYNC ERROR:",
+    error
+  );
+
+  /*
+   * Network / Supabase RPC error.
+   *
+   * Keep the receipt pending so it can
+   * safely be retried later.
+   */
+  if (error) {
+    await updateLocalReceiptSyncState(
+      receipt.clientReceiptId,
+      "pending",
+      {
+        syncAttempts:
+          nextAttempt,
+
+        lastSyncAttemptAt:
+          attemptTime,
+
+        lastSyncError:
+          error.message,
+      }
+    );
+
+    return {
+      receipt,
+      success: false,
+      alreadyExists: false,
+      conflict: false,
+      response: error,
+    };
+  }
+
+  const response =
+    data as SyncResponse;
+
+  /*
+   * Server-side receipt-number conflict.
+   *
+   * Do NOT continue to the next receipt.
+   */
+  if (
+    response.sync_status ===
+      "conflict" ||
+    response.reason ===
+      "receipt_number_mismatch"
+  ) {
+    await updateLocalReceiptSyncState(
+      receipt.clientReceiptId,
+      "conflict",
+      {
+        syncAttempts:
+          nextAttempt,
+
+        lastSyncAttemptAt:
+          attemptTime,
+
+        lastSyncError:
+          response.message ??
+          response.reason ??
+          "Receipt number conflict",
+      }
+    );
+
+    return {
+      receipt,
+      success: false,
+      alreadyExists: false,
+      conflict: true,
+      response,
+    };
+  }
+
+  /*
+   * Successful server response.
+   *
+   * This includes the idempotent
+   * already_exists case.
+   */
+  if (
+    response.success === true
+  ) {
+    await updateLocalReceiptSyncState(
+      receipt.clientReceiptId,
+      "synced",
+      {
+        syncAttempts:
+          nextAttempt,
+
+        lastSyncAttemptAt:
+          attemptTime,
+
+        lastSyncError: null,
+      }
+    );
+
+    return {
+      receipt,
+      success: true,
+      alreadyExists:
+        response.already_exists ===
+        true,
+      conflict: false,
+      response,
+    };
+  }
+
+  /*
+   * Unexpected server response.
+   * Treat it as retryable rather than
+   * incorrectly marking the receipt
+   * as synced.
+   */
+  const unexpectedMessage =
+    response.message ??
+    "Unexpected sync response from server.";
+
+  await updateLocalReceiptSyncState(
+    receipt.clientReceiptId,
+    "pending",
+    {
+      syncAttempts:
+        nextAttempt,
+
+      lastSyncAttemptAt:
+        attemptTime,
+
+      lastSyncError:
+        unexpectedMessage,
+    }
+  );
+
+  return {
+    receipt,
+    success: false,
+    alreadyExists: false,
+    conflict: false,
+    response,
+  };
+}
+
+===== dashboard-page.tsx =====
+import { useState } from "react";
+
+import {
+  syncNextReceipt,
+} from "@/lib/offline/receipt-sync";
+
+import {
+  updateLocalReceiptSyncState,
+} from "@/lib/offline/offline-db";
+
+const TEST_BOOK_ID =
+  "574227cb-eb77-4b1a-bc59-e71589aca34d";
+
+const TEST_CLIENT_RECEIPT_ID =
+  "343b1c74-0703-4e2f-b13a-526b38bf958b";
+
+export function DashboardPage() {
+  const [message, setMessage] =
+    useState(
+      "Ready for idempotency test."
+    );
+
+  async function testIdempotentRetry() {
+    try {
+      console.log(
+        "Starting idempotent retry test..."
+      );
+
+      /*
+       * Temporarily mark the already-synced
+       * #103 as pending.
+       *
+       * We are NOT changing the receipt data
+       * or its clientReceiptId.
+       */
+      await updateLocalReceiptSyncState(
+        TEST_CLIENT_RECEIPT_ID,
+        "pending"
+      );
+
+      console.log(
+        "Receipt #103 temporarily marked pending."
+      );
+
+      /*
+       * Sync engine will now pick #103 because
+       * #100-#102 are already synced.
+       */
+      const result =
+        await syncNextReceipt(
+          TEST_BOOK_ID
+        );
+
+      console.log(
+        "IDEMPOTENCY RESULT:",
+        result
+      );
+
+      if (!result) {
+        setMessage(
+          "No pending receipt found."
+        );
+        return;
+      }
+
+      if (
+        result.success &&
+        result.alreadyExists
+      ) {
+        setMessage(
+          "Idempotency test PASSED: existing receipt was reused."
+        );
+        return;
+      }
+
+      if (result.success) {
+        setMessage(
+          "Receipt synced, but already_exists was not true."
+        );
+        return;
+      }
+
+      if (result.conflict) {
+        setMessage(
+          "Unexpected receipt-number conflict."
+        );
+        return;
+      }
+
+      setMessage(
+        "Idempotency test did not succeed."
+      );
+    } catch (error) {
+      console.error(
+        "IDEMPOTENCY TEST ERROR:",
+        error
+      );
+
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Idempotency test failed."
+      );
+    }
+  }
+
+  return (
+    <div className="p-6">
+      <h1 className="text-2xl font-semibold">
+        Dashboard
+      </h1>
+
+      <p className="mt-3 text-muted-foreground">
+        Offline Receipt Idempotency Test
+      </p>
+
+      <div className="mt-6">
+        <button
+          onClick={testIdempotentRetry}
+          className="rounded bg-blue-600 px-4 py-2 text-white"
+        >
+          Test Idempotent Retry
+        </button>
+      </div>
+
+      <p className="mt-6">
+        {message}
+      </p>
+    </div>
+  );
+}

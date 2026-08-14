@@ -53,9 +53,7 @@ export async function initializeCollectionSession(): Promise<
   const authUser = authData.user;
 
   if (!authUser) {
-    throw new Error(
-      "No authenticated Supabase user."
-    );
+    throw new Error("No authenticated Supabase user.");
   }
 
   /*
@@ -85,9 +83,7 @@ export async function initializeCollectionSession(): Promise<
   }
 
   if (!appUser.is_active) {
-    throw new Error(
-      "The VarganiPro user account is inactive."
-    );
+    throw new Error("The VarganiPro user account is inactive.");
   }
 
   /*
@@ -119,27 +115,33 @@ export async function initializeCollectionSession(): Promise<
   }
 
   /*
-   * 4. Find open collection sessions for the
-   *    volunteer.
+   * 4. Prefer an OPEN collection session.
    *
-   * We currently have two test sessions, so we
-   * intentionally use the most recently started one.
+   * If there is no open session, load the most recently
+   * started COMPLETED session instead.
+   *
+   * This is important after a volunteer closes a session:
+   * the dashboard still needs to display the completed
+   * session so its summary and handover workflow remain
+   * accessible.
+   *
+   * A new receipt can only be created while sessionStatus
+   * is "open" (enforced by the dashboard).
    */
+
   const {
-    data: sessions,
-    error: sessionError,
+    data: openSessions,
+    error: openSessionError,
   } = await supabase
     .from("collection_sessions")
     .select(
-      `
-        id,
-        organization_id,
-        event_id,
-        volunteer_id,
-        receipt_book_id,
-        status,
-        started_at
-      `
+      `id,
+       organization_id,
+       event_id,
+       volunteer_id,
+       receipt_book_id,
+       status,
+       started_at`
     )
     .eq("volunteer_id", volunteer.id)
     .eq("status", "open")
@@ -147,19 +149,57 @@ export async function initializeCollectionSession(): Promise<
       ascending: false,
     });
 
-  if (sessionError) {
+  if (openSessionError) {
     throw new Error(
-      `Unable to find collection session: ${sessionError.message}`
+      `Unable to find open collection session: ${openSessionError.message}`
     );
   }
 
-  const session =
-    (sessions as CollectionSessionRow[] | null)?.[0] ??
+  let session =
+    (openSessions as CollectionSessionRow[] | null)?.[0] ??
     null;
+
+  /*
+   * No open session. Fall back to the most recent
+   * completed session so the volunteer can finish the
+   * handover workflow.
+   */
+  if (!session) {
+    const {
+      data: completedSessions,
+      error: completedSessionError,
+    } = await supabase
+      .from("collection_sessions")
+      .select(
+        `id,
+         organization_id,
+         event_id,
+         volunteer_id,
+         receipt_book_id,
+         status,
+         started_at`
+      )
+      .eq("volunteer_id", volunteer.id)
+      .eq("status", "completed")
+      .order("started_at", {
+        ascending: false,
+      })
+      .limit(1);
+
+    if (completedSessionError) {
+      throw new Error(
+        `Unable to find completed collection session: ${completedSessionError.message}`
+      );
+    }
+
+    session =
+      (completedSessions as CollectionSessionRow[] | null)?.[0] ??
+      null;
+  }
 
   if (!session) {
     throw new Error(
-      "No open collection session is assigned to this volunteer."
+      "No open or recently completed collection session is assigned to this volunteer."
     );
   }
 
@@ -168,15 +208,15 @@ export async function initializeCollectionSession(): Promise<
    */
   if (!session.receipt_book_id) {
     throw new Error(
-      "The open collection session does not have a receipt book assigned."
+      "The collection session does not have a receipt book assigned."
     );
   }
 
   /*
    * 6. Load the receipt book separately.
    *
-   * This avoids the PostgREST relationship
-   * embedding ambiguity.
+   * This avoids the PostgREST relationship embedding
+   * ambiguity.
    */
   const {
     data: book,
@@ -184,16 +224,15 @@ export async function initializeCollectionSession(): Promise<
   } = await supabase
     .from("receipt_books")
     .select(
-      `
-        id,
-        book_number,
-        prefix,
-        start_number,
-        end_number,
-        current_number,
-        status,
-        assigned_volunteer_id
-      `
+      `id,
+       book_number,
+       prefix,
+       start_number,
+       end_number,
+       current_number,
+       status,
+       assigned_volunteer_id,
+       checked_out_session_id`
     )
     .eq("id", session.receipt_book_id)
     .maybeSingle();
@@ -211,14 +250,28 @@ export async function initializeCollectionSession(): Promise<
   }
 
   /*
-   * 7. Verify receipt-book ownership.
+   * 7. Verify receipt-book ownership for an OPEN session.
+   *
+   * A COMPLETED session must remain restorable after refresh even
+   * if the book has already been released/reassigned. In that case
+   * the authoritative relationship is the collection session itself.
    */
   if (
-    book.assigned_volunteer_id !==
-    volunteer.id
+    session.status === "open" &&
+    book.assigned_volunteer_id !== volunteer.id
   ) {
     throw new Error(
       "The receipt book is not assigned to the current volunteer."
+    );
+  }
+
+  if (
+    session.status === "completed" &&
+    book.checked_out_session_id &&
+    book.checked_out_session_id !== session.id
+  ) {
+    throw new Error(
+      "The receipt book is not linked to this completed collection session."
     );
   }
 
@@ -226,10 +279,8 @@ export async function initializeCollectionSession(): Promise<
    * 8. Validate receipt number range.
    */
   if (
-    book.current_number <
-      book.start_number ||
-    book.current_number >
-      book.end_number + 1
+    book.current_number < book.start_number ||
+    book.current_number > book.end_number + 1
   ) {
     throw new Error(
       "The receipt book has an invalid current receipt number."
@@ -238,40 +289,33 @@ export async function initializeCollectionSession(): Promise<
 
   /*
    * 9. Build local offline book state.
+   *
+   * We continue saving the server's current number as the
+   * local next number. The receipt creation workflow itself
+   * checks sessionStatus before allowing a new receipt.
    */
   const bookState: OfflineBookState = {
-    receiptBookId:
-      book.id,
+    receiptBookId: book.id,
 
-    organizationId:
-      session.organization_id,
+    organizationId: session.organization_id,
 
-    eventId:
-      session.event_id,
+    eventId: session.event_id,
 
-    collectionSessionId:
-      session.id,
+    collectionSessionId: session.id,
 
-    volunteerId:
-      session.volunteer_id,
+    volunteerId: session.volunteer_id,
 
-    bookNumber:
-      book.book_number,
+    bookNumber: book.book_number,
 
-    prefix:
-      book.prefix,
+    prefix: book.prefix,
 
-    startNumber:
-      book.start_number,
+    startNumber: book.start_number,
 
-    endNumber:
-      book.end_number,
+    endNumber: book.end_number,
 
-    nextLocalNumber:
-      book.current_number,
+    nextLocalNumber: book.current_number,
 
-    updatedAt:
-      new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   };
 
   /*
@@ -283,40 +327,28 @@ export async function initializeCollectionSession(): Promise<
    * 11. Return the initialized context.
    */
   return {
-    sessionId:
-      session.id,
+    sessionId: session.id,
 
-    organizationId:
-      session.organization_id,
+    organizationId: session.organization_id,
 
-    eventId:
-      session.event_id,
+    eventId: session.event_id,
 
-    volunteerId:
-      session.volunteer_id,
+    volunteerId: session.volunteer_id,
 
-    receiptBookId:
-      book.id,
+    receiptBookId: book.id,
 
-    bookNumber:
-      book.book_number,
+    bookNumber: book.book_number,
 
-    prefix:
-      book.prefix,
+    prefix: book.prefix,
 
-    startNumber:
-      book.start_number,
+    startNumber: book.start_number,
 
-    endNumber:
-      book.end_number,
+    endNumber: book.end_number,
 
-    currentNumber:
-      book.current_number,
+    currentNumber: book.current_number,
 
-    sessionStatus:
-      session.status,
+    sessionStatus: session.status,
 
-    bookStatus:
-      book.status,
+    bookStatus: book.status,
   };
 }

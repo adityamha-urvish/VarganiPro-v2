@@ -1,0 +1,984 @@
+import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+
+import {
+  initializeCollectionSession,
+  type CollectionSessionContext,
+} from "@/features/collection/services/collection-session.service";
+
+import {
+  createLocalReceipt,
+  type CreateLocalReceiptInput,
+} from "@/lib/offline/receipt-store";
+
+import {
+  getLocalReceipts,
+  type LocalReceipt,
+} from "@/lib/offline/offline-db";
+
+import { syncNextReceipt } from "@/lib/offline/receipt-sync";
+
+type PaymentMode =
+  | "cash"
+  | "upi"
+  | "cheque"
+  | "bank_transfer";
+
+export function DashboardPage() {
+  const [session, setSession] =
+    useState<CollectionSessionContext | null>(null);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [error, setError] =
+    useState<string | null>(null);
+
+  const [donorName, setDonorName] =
+    useState("");
+
+  const [donorMobile, setDonorMobile] =
+    useState("");
+
+  const [amount, setAmount] =
+    useState("");
+
+  const [paymentMode, setPaymentMode] =
+    useState<PaymentMode>("cash");
+
+  const [paymentReference, setPaymentReference] =
+    useState("");
+
+  const [notes, setNotes] =
+    useState("");
+
+  const [creating, setCreating] =
+    useState(false);
+
+  const [createdReceipt, setCreatedReceipt] =
+    useState<LocalReceipt | null>(null);
+
+  const [createError, setCreateError] =
+    useState<string | null>(null);
+
+  const [syncMessage, setSyncMessage] =
+    useState<string | null>(null);
+
+  const [receipts, setReceipts] =
+    useState<LocalReceipt[]>([]);
+
+  const [historyLoading, setHistoryLoading] =
+    useState(false);
+
+  /*
+   * Load all locally stored receipts
+   * for the active receipt book.
+   */
+  async function loadReceiptHistory(
+    receiptBookId: string
+  ) {
+    setHistoryLoading(true);
+
+    try {
+      const localReceipts =
+        await getLocalReceipts(receiptBookId);
+
+      console.log(
+        "LOCAL RECEIPT HISTORY:",
+        localReceipts
+      );
+
+      setReceipts(localReceipts);
+    } catch (err) {
+      console.error(
+        "RECEIPT HISTORY ERROR:",
+        err
+      );
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  /*
+   * Initialize collection session.
+   */
+  useEffect(() => {
+    async function initialize() {
+      try {
+        console.log(
+          "Initializing collection session..."
+        );
+
+        const result =
+          await initializeCollectionSession();
+
+        console.log(
+          "COLLECTION SESSION:",
+          result
+        );
+
+        setSession(result);
+
+        await loadReceiptHistory(
+          result.receiptBookId
+        );
+      } catch (err) {
+        console.error(
+          "COLLECTION SESSION ERROR:",
+          err
+        );
+
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Unable to initialize collection session."
+        );
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    void initialize();
+  }, []);
+
+  /*
+   * Create the next local receipt.
+   */
+  async function handleCreateReceipt(
+    event: FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    if (!session) {
+      setCreateError(
+        "Collection session is not initialized."
+      );
+
+      return;
+    }
+
+    setCreateError(null);
+    setSyncMessage(null);
+    setCreating(true);
+
+    try {
+      const parsedAmount = Number(amount);
+
+      if (
+        !Number.isFinite(parsedAmount) ||
+        parsedAmount <= 0
+      ) {
+        throw new Error(
+          "Amount must be greater than zero."
+        );
+      }
+
+      if (!donorName.trim()) {
+        throw new Error(
+          "Donor name is required."
+        );
+      }
+
+      const input: CreateLocalReceiptInput = {
+        organizationId:
+          session.organizationId,
+
+        eventId:
+          session.eventId,
+
+        collectionSessionId:
+          session.sessionId,
+
+        receiptBookId:
+          session.receiptBookId,
+
+        volunteerId:
+          session.volunteerId,
+
+        propertyId: null,
+
+        donorName:
+          donorName.trim(),
+
+        donorMobile:
+          donorMobile.trim() || null,
+
+        amount:
+          parsedAmount,
+
+        paymentMode,
+
+        paymentReference:
+          paymentReference.trim() || null,
+
+        notes:
+          notes.trim() || null,
+      };
+
+      /*
+       * Same tested local receipt creation
+       * path used for receipts #104 and #105.
+       */
+      const receipt =
+        await createLocalReceipt(input);
+
+      console.log(
+        "LOCAL RECEIPT CREATED:",
+        receipt
+      );
+
+      setCreatedReceipt(receipt);
+
+      /*
+       * Show the receipt immediately in local
+       * history before attempting synchronization.
+       */
+      await loadReceiptHistory(
+        session.receiptBookId
+      );
+
+      /*
+       * Clear form for next receipt.
+       */
+      setDonorName("");
+      setDonorMobile("");
+      setAmount("");
+      setPaymentMode("cash");
+      setPaymentReference("");
+      setNotes("");
+
+      /*
+       * Try synchronization.
+       */
+      try {
+        const syncResult =
+          await syncNextReceipt(
+            session.receiptBookId
+          );
+
+        /*
+         * syncNextReceipt can legitimately
+         * return null when there is nothing
+         * pending to synchronize.
+         */
+        if (!syncResult) {
+          await loadReceiptHistory(
+            session.receiptBookId
+          );
+
+          setSyncMessage(
+            "Receipt created locally. There are no receipts currently waiting to sync."
+          );
+
+          return;
+        }
+
+        console.log(
+          "SYNC RESULT:",
+          syncResult
+        );
+
+        /*
+         * Reload history so the UI reflects
+         * the final synchronization state.
+         */
+        await loadReceiptHistory(
+          session.receiptBookId
+        );
+
+        if (syncResult.success) {
+          if (syncResult.alreadyExists) {
+            setSyncMessage(
+              "Receipt already existed on the server. No duplicate was created."
+            );
+          } else {
+            setSyncMessage(
+              "Receipt created and synced successfully."
+            );
+          }
+        } else if (syncResult.conflict) {
+          setSyncMessage(
+            "Receipt created locally, but synchronization requires attention."
+          );
+        } else {
+          setSyncMessage(
+            "Receipt created locally and is waiting to sync."
+          );
+        }
+      } catch (syncError) {
+        console.error(
+          "SYNC ERROR:",
+          syncError
+        );
+
+        /*
+         * The receipt is already safely stored
+         * locally, so it remains available for
+         * later synchronization.
+         */
+        await loadReceiptHistory(
+          session.receiptBookId
+        );
+
+        setSyncMessage(
+          "Receipt created locally. It will remain available for synchronization."
+        );
+      }
+    } catch (err) {
+      console.error(
+        "CREATE RECEIPT ERROR:",
+        err
+      );
+
+      setCreateError(
+        err instanceof Error
+          ? err.message
+          : "Unable to create receipt."
+      );
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  /*
+   * Manually synchronize the next pending receipt.
+   */
+  async function handleSyncNextReceipt() {
+    if (!session) {
+      return;
+    }
+
+    setSyncMessage(null);
+
+    try {
+      const result =
+        await syncNextReceipt(
+          session.receiptBookId
+        );
+
+      /*
+       * No pending receipt is a valid state.
+       */
+      if (!result) {
+        await loadReceiptHistory(
+          session.receiptBookId
+        );
+
+        setSyncMessage(
+          "No pending receipts to synchronize."
+        );
+
+        return;
+      }
+
+      console.log(
+        "MANUAL SYNC RESULT:",
+        result
+      );
+
+      await loadReceiptHistory(
+        session.receiptBookId
+      );
+
+      if (result.success) {
+        setSyncMessage(
+          result.alreadyExists
+            ? "Receipt was already synchronized."
+            : "Receipt synchronized successfully."
+        );
+      } else if (result.conflict) {
+        setSyncMessage(
+          "Receipt synchronization encountered a conflict."
+        );
+      } else {
+        setSyncMessage(
+          "No receipt was synchronized."
+        );
+      }
+    } catch (err) {
+      console.error(
+        "MANUAL SYNC ERROR:",
+        err
+      );
+
+      setSyncMessage(
+        err instanceof Error
+          ? err.message
+          : "Unable to synchronize receipt."
+      );
+    }
+  }
+
+  function getStatusLabel(
+    status: LocalReceipt["syncStatus"]
+  ) {
+    switch (status) {
+      case "pending":
+        return "Pending";
+
+      case "syncing":
+        return "Syncing";
+
+      case "synced":
+        return "Synced";
+
+      case "conflict":
+        return "Conflict";
+
+      default:
+        return status;
+    }
+  }
+
+  function getStatusClass(
+    status: LocalReceipt["syncStatus"]
+  ) {
+    switch (status) {
+      case "pending":
+        return "bg-yellow-100 text-yellow-800";
+
+      case "syncing":
+        return "bg-blue-100 text-blue-800";
+
+      case "synced":
+        return "bg-green-100 text-green-800";
+
+      case "conflict":
+        return "bg-red-100 text-red-800";
+
+      default:
+        return "bg-muted text-muted-foreground";
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="p-6">
+        <h1 className="text-2xl font-semibold">
+          Dashboard
+        </h1>
+
+        <p className="mt-3 text-muted-foreground">
+          Loading collection session...
+        </p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <h1 className="text-2xl font-semibold">
+          Dashboard
+        </h1>
+
+        <div className="mt-6 rounded-lg border border-red-200 bg-red-50 p-4">
+          <p className="font-medium text-red-700">
+            Unable to initialize collection
+            session
+          </p>
+
+          <p className="mt-2 text-sm text-red-600">
+            {error}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-6 p-6">
+      {/* ----------------------------------------
+          COLLECTION SESSION
+      ----------------------------------------- */}
+
+      <div>
+        <h1 className="text-2xl font-semibold">
+          Collection
+        </h1>
+
+        <p className="mt-1 text-sm text-muted-foreground">
+          {session.bookNumber}
+        </p>
+      </div>
+
+      {/* Session information */}
+
+      <div className="rounded-lg border bg-card p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm text-muted-foreground">
+              Receipt Book
+            </p>
+
+            <p className="text-lg font-semibold">
+              {session.prefix}
+              {session.currentNumber}
+            </p>
+          </div>
+
+          <div>
+            <p className="text-sm text-muted-foreground">
+              Available Range
+            </p>
+
+            <p className="font-medium">
+              {session.startNumber} –{" "}
+              {session.endNumber}
+            </p>
+          </div>
+
+          <div>
+            <p className="text-sm text-muted-foreground">
+              Status
+            </p>
+
+            <p className="font-medium">
+              {session.bookStatus}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* ----------------------------------------
+          LAST CREATED RECEIPT
+      ----------------------------------------- */}
+
+      {createdReceipt && (
+        <div className="rounded-lg border border-green-200 bg-green-50 p-5">
+          <p className="text-sm font-medium text-green-700">
+            Receipt created
+          </p>
+
+          <p className="mt-1 text-2xl font-bold text-green-800">
+            #{createdReceipt.receiptNumber}
+          </p>
+
+          <p className="mt-1 text-sm text-green-700">
+            {createdReceipt.donorName} — ₹
+            {createdReceipt.amount.toFixed(2)}
+          </p>
+
+          <p className="mt-2 text-xs text-green-700">
+            Status:{" "}
+            {getStatusLabel(
+              createdReceipt.syncStatus
+            )}
+          </p>
+        </div>
+      )}
+
+      {/* ----------------------------------------
+          SYNC MESSAGE
+      ----------------------------------------- */}
+
+      {syncMessage && (
+        <div className="rounded-lg border bg-muted/40 p-4">
+          <p className="text-sm">
+            {syncMessage}
+          </p>
+        </div>
+      )}
+
+      {/* ----------------------------------------
+          NEW RECEIPT
+      ----------------------------------------- */}
+
+      <form
+        onSubmit={handleCreateReceipt}
+        className="rounded-lg border bg-card p-6"
+      >
+        <div className="mb-6">
+          <h2 className="text-xl font-semibold">
+            New Receipt
+          </h2>
+
+          <p className="mt-1 text-sm text-muted-foreground">
+            Receipt #
+            {session.currentNumber}
+          </p>
+        </div>
+
+        <div className="space-y-5">
+          {/* Donor name */}
+
+          <div>
+            <label
+              htmlFor="donorName"
+              className="mb-2 block text-sm font-medium"
+            >
+              Donor Name *
+            </label>
+
+            <Input
+              id="donorName"
+              value={donorName}
+              onChange={(event) =>
+                setDonorName(
+                  event.target.value
+                )
+              }
+              placeholder="Enter donor name"
+              required
+            />
+          </div>
+
+          {/* Mobile */}
+
+          <div>
+            <label
+              htmlFor="donorMobile"
+              className="mb-2 block text-sm font-medium"
+            >
+              Mobile
+            </label>
+
+            <Input
+              id="donorMobile"
+              type="tel"
+              value={donorMobile}
+              onChange={(event) =>
+                setDonorMobile(
+                  event.target.value
+                )
+              }
+              placeholder="Enter mobile number"
+            />
+          </div>
+
+          {/* Amount */}
+
+          <div>
+            <label
+              htmlFor="amount"
+              className="mb-2 block text-sm font-medium"
+            >
+              Amount *
+            </label>
+
+            <Input
+              id="amount"
+              type="number"
+              min="1"
+              step="0.01"
+              value={amount}
+              onChange={(event) =>
+                setAmount(
+                  event.target.value
+                )
+              }
+              placeholder="Enter amount"
+              required
+            />
+          </div>
+
+          {/* Payment mode */}
+
+          <div>
+            <label
+              htmlFor="paymentMode"
+              className="mb-2 block text-sm font-medium"
+            >
+              Payment Mode *
+            </label>
+
+            <select
+              id="paymentMode"
+              value={paymentMode}
+              onChange={(event) =>
+                setPaymentMode(
+                  event.target
+                    .value as PaymentMode
+                )
+              }
+              className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus:border-ring focus:ring-3 focus:ring-ring/50"
+            >
+              <option value="cash">
+                Cash
+              </option>
+
+              <option value="upi">
+                UPI
+              </option>
+
+              <option value="cheque">
+                Cheque
+              </option>
+
+              <option value="bank_transfer">
+                Bank Transfer
+              </option>
+            </select>
+          </div>
+
+          {/* Payment reference */}
+
+          <div>
+            <label
+              htmlFor="paymentReference"
+              className="mb-2 block text-sm font-medium"
+            >
+              Payment Reference
+            </label>
+
+            <Input
+              id="paymentReference"
+              value={paymentReference}
+              onChange={(event) =>
+                setPaymentReference(
+                  event.target.value
+                )
+              }
+              placeholder="UPI ID / cheque number / reference"
+            />
+          </div>
+
+          {/* Notes */}
+
+          <div>
+            <label
+              htmlFor="notes"
+              className="mb-2 block text-sm font-medium"
+            >
+              Notes
+            </label>
+
+            <textarea
+              id="notes"
+              value={notes}
+              onChange={(event) =>
+                setNotes(
+                  event.target.value
+                )
+              }
+              placeholder="Optional notes"
+              rows={3}
+              className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus:border-ring focus:ring-3 focus:ring-ring/50"
+            />
+          </div>
+
+          {/* Error */}
+
+          {createError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+              <p className="text-sm text-red-700">
+                {createError}
+              </p>
+            </div>
+          )}
+
+          {/* Submit */}
+
+          <Button
+            type="submit"
+            disabled={creating}
+            className="w-full"
+          >
+            {creating
+              ? "Creating Receipt..."
+              : `Create Receipt #${session.currentNumber}`}
+          </Button>
+        </div>
+      </form>
+
+      {/* ----------------------------------------
+          RECEIPT HISTORY / SYNC QUEUE
+      ----------------------------------------- */}
+
+      <div className="rounded-lg border bg-card">
+        <div className="flex flex-col gap-3 border-b p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold">
+              Receipt History
+            </h2>
+
+            <p className="mt-1 text-sm text-muted-foreground">
+              Receipts stored on this device
+            </p>
+          </div>
+
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() =>
+                void loadReceiptHistory(
+                  session.receiptBookId
+                )
+              }
+              disabled={historyLoading}
+            >
+              {historyLoading
+                ? "Refreshing..."
+                : "Refresh"}
+            </Button>
+
+            <Button
+              type="button"
+              onClick={() =>
+                void handleSyncNextReceipt()
+              }
+              disabled={historyLoading}
+            >
+              Sync Next
+            </Button>
+          </div>
+        </div>
+
+        {historyLoading &&
+        receipts.length === 0 ? (
+          <div className="p-6 text-sm text-muted-foreground">
+            Loading receipt history...
+          </div>
+        ) : receipts.length === 0 ? (
+          <div className="p-6 text-sm text-muted-foreground">
+            No local receipts found for this
+            receipt book.
+          </div>
+        ) : (
+          <div className="divide-y">
+            {receipts.map((receipt) => (
+              <div
+                key={receipt.clientReceiptId}
+                className="p-5"
+              >
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  {/* Receipt identity */}
+
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span className="text-lg font-semibold">
+                        #{receipt.receiptNumber}
+                      </span>
+
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${getStatusClass(
+                          receipt.syncStatus
+                        )}`}
+                      >
+                        {getStatusLabel(
+                          receipt.syncStatus
+                        )}
+                      </span>
+                    </div>
+
+                    <p className="mt-1 font-medium">
+                      {receipt.donorName}
+                    </p>
+
+                    {receipt.donorMobile && (
+                      <p className="text-sm text-muted-foreground">
+                        {receipt.donorMobile}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Amount */}
+
+                  <div className="lg:text-right">
+                    <p className="text-lg font-semibold">
+                      ₹
+                      {receipt.amount.toFixed(
+                        2
+                      )}
+                    </p>
+
+                    <p className="text-sm capitalize text-muted-foreground">
+                      {receipt.paymentMode.replace(
+                        "_",
+                        " "
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Additional details */}
+
+                <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                  <div>
+                    <p className="text-muted-foreground">
+                      Receipt
+                    </p>
+
+                    <p className="font-medium">
+                      {session.prefix}
+                      {receipt.receiptNumber}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-muted-foreground">
+                      Created
+                    </p>
+
+                    <p className="font-medium">
+                      {new Date(
+                        receipt.createdAt
+                      ).toLocaleString()}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-muted-foreground">
+                      Sync Attempts
+                    </p>
+
+                    <p className="font-medium">
+                      {receipt.syncAttempts}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-muted-foreground">
+                      Reference
+                    </p>
+
+                    <p className="truncate font-medium">
+                      {receipt.paymentReference ||
+                        "—"}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Sync error */}
+
+                {receipt.lastSyncError && (
+                  <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3">
+                    <p className="text-xs font-medium text-red-700">
+                      Sync error
+                    </p>
+
+                    <p className="mt-1 text-sm text-red-600">
+                      {receipt.lastSyncError}
+                    </p>
+                  </div>
+                )}
+
+                {/* Notes */}
+
+                {receipt.notes && (
+                  <div className="mt-4 rounded-lg bg-muted/40 p-3">
+                    <p className="text-xs text-muted-foreground">
+                      Notes
+                    </p>
+
+                    <p className="mt-1 text-sm">
+                      {receipt.notes}
+                    </p>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
