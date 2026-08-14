@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 
+import { supabase } from "@/supabase/client";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -76,6 +78,15 @@ export function DashboardPage() {
   const [historyLoading, setHistoryLoading] =
     useState(false);
 
+  const [closingSession, setClosingSession] =
+    useState(false);
+
+  const [sessionCloseMessage, setSessionCloseMessage] =
+    useState<string | null>(null);
+
+  const [sessionCloseError, setSessionCloseError] =
+    useState<string | null>(null);
+
   /*
    * Load all locally stored receipts
    * for the active receipt book.
@@ -104,6 +115,44 @@ export function DashboardPage() {
       setHistoryLoading(false);
     }
   }
+
+  const issuedReceipts = receipts.filter(
+    (receipt) => receipt.syncStatus === "synced"
+  );
+
+  const pendingReceipts = receipts.filter(
+    (receipt) =>
+      receipt.syncStatus === "pending" ||
+      receipt.syncStatus === "syncing"
+  );
+
+  const conflictReceipts = receipts.filter(
+    (receipt) => receipt.syncStatus === "conflict"
+  );
+
+  const totalAmount = issuedReceipts.reduce(
+    (total, receipt) => total + receipt.amount,
+    0
+  );
+
+  const cashAmount = issuedReceipts
+    .filter((receipt) => receipt.paymentMode === "cash")
+    .reduce((total, receipt) => total + receipt.amount, 0);
+
+  const upiAmount = issuedReceipts
+    .filter((receipt) => receipt.paymentMode === "upi")
+    .reduce((total, receipt) => total + receipt.amount, 0);
+
+  const chequeAmount = issuedReceipts
+    .filter((receipt) => receipt.paymentMode === "cheque")
+    .reduce((total, receipt) => total + receipt.amount, 0);
+
+  const bankTransferAmount = issuedReceipts
+    .filter(
+      (receipt) =>
+        receipt.paymentMode === "bank_transfer"
+    )
+    .reduce((total, receipt) => total + receipt.amount, 0);
 
   /*
    * Initialize collection session.
@@ -412,6 +461,108 @@ export function DashboardPage() {
           ? err.message
           : "Unable to synchronize receipt."
       );
+    }
+  }
+
+  async function handleCloseSession() {
+    if (!session) {
+      return;
+    }
+
+    if (session.sessionStatus !== "open") {
+      return;
+    }
+
+    setSessionCloseMessage(null);
+    setSessionCloseError(null);
+
+    if (pendingReceipts.length > 0) {
+      setSessionCloseError(
+        `Cannot close session. ${pendingReceipts.length} receipt(s) are still waiting to sync.`
+      );
+      return;
+    }
+
+    if (conflictReceipts.length > 0) {
+      setSessionCloseError(
+        `Cannot close session. ${conflictReceipts.length} receipt(s) have synchronization conflicts.`
+      );
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Close this collection session?\n\n` +
+        `Receipts: ${issuedReceipts.length}\n` +
+        `Total: ₹${totalAmount.toFixed(2)}\n\n` +
+        `Once completed, this session cannot be used to create more receipts.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setClosingSession(true);
+
+    try {
+      const { data, error } =
+        await supabase.rpc(
+          "complete_collection_session",
+          {
+            p_collection_session_id:
+              session.sessionId,
+          }
+        );
+
+      console.log(
+        "COMPLETE SESSION RESPONSE:",
+        data
+      );
+
+      console.log(
+        "COMPLETE SESSION ERROR:",
+        error
+      );
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      if (
+        !data ||
+        typeof data !== "object" ||
+        !("success" in data) ||
+        data.success !== true
+      ) {
+        throw new Error(
+          "Unexpected response while completing collection session."
+        );
+      }
+
+      setSession((current) =>
+        current
+          ? {
+              ...current,
+              sessionStatus: "completed",
+            }
+          : current
+      );
+
+      setSessionCloseMessage(
+        "Collection session completed successfully."
+      );
+    } catch (err) {
+      console.error(
+        "COMPLETE SESSION ERROR:",
+        err
+      );
+
+      setSessionCloseError(
+        err instanceof Error
+          ? err.message
+          : "Unable to complete collection session."
+      );
+    } finally {
+      setClosingSession(false);
     }
   }
 
@@ -862,6 +1013,149 @@ export function DashboardPage() {
       </div>
 
       {/* ----------------------------------------
+          SESSION SUMMARY
+      ----------------------------------------- */}
+
+      <div className="rounded-lg border bg-card p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold">
+              Session Summary
+            </h2>
+
+            <p className="mt-1 text-sm text-muted-foreground">
+              Collection summary for this session
+            </p>
+          </div>
+
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-medium ${
+              session.sessionStatus === "open"
+                ? "bg-green-100 text-green-800"
+                : "bg-muted text-muted-foreground"
+            }`}
+          >
+            {session.sessionStatus === "open"
+              ? "Open"
+              : "Completed"}
+          </span>
+        </div>
+
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-lg border p-4">
+            <p className="text-sm text-muted-foreground">
+              Receipts
+            </p>
+            <p className="mt-1 text-2xl font-bold">
+              {issuedReceipts.length}
+            </p>
+          </div>
+
+          <div className="rounded-lg border p-4">
+            <p className="text-sm text-muted-foreground">
+              Total Collection
+            </p>
+            <p className="mt-1 text-2xl font-bold">
+              ₹{totalAmount.toFixed(2)}
+            </p>
+          </div>
+
+          <div className="rounded-lg border p-4">
+            <p className="text-sm text-muted-foreground">
+              Pending Sync
+            </p>
+            <p className="mt-1 text-2xl font-bold">
+              {pendingReceipts.length}
+            </p>
+          </div>
+
+          <div className="rounded-lg border p-4">
+            <p className="text-sm text-muted-foreground">
+              Conflicts
+            </p>
+            <p className="mt-1 text-2xl font-bold">
+              {conflictReceipts.length}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <p className="text-sm text-muted-foreground">
+              Cash
+            </p>
+            <p className="font-semibold">
+              ₹{cashAmount.toFixed(2)}
+            </p>
+          </div>
+
+          <div>
+            <p className="text-sm text-muted-foreground">
+              UPI
+            </p>
+            <p className="font-semibold">
+              ₹{upiAmount.toFixed(2)}
+            </p>
+          </div>
+
+          <div>
+            <p className="text-sm text-muted-foreground">
+              Cheque
+            </p>
+            <p className="font-semibold">
+              ₹{chequeAmount.toFixed(2)}
+            </p>
+          </div>
+
+          <div>
+            <p className="text-sm text-muted-foreground">
+              Bank Transfer
+            </p>
+            <p className="font-semibold">
+              ₹{bankTransferAmount.toFixed(2)}
+            </p>
+          </div>
+        </div>
+
+        {sessionCloseError && (
+          <div className="mt-5 rounded-lg border border-red-200 bg-red-50 p-3">
+            <p className="text-sm text-red-700">
+              {sessionCloseError}
+            </p>
+          </div>
+        )}
+
+        {sessionCloseMessage && (
+          <div className="mt-5 rounded-lg border border-green-200 bg-green-50 p-3">
+            <p className="text-sm text-green-700">
+              {sessionCloseMessage}
+            </p>
+          </div>
+        )}
+
+        {session.sessionStatus === "open" && (
+          <div className="mt-6 flex justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() =>
+                void handleCloseSession()
+              }
+              disabled={
+                closingSession ||
+                pendingReceipts.length > 0 ||
+                conflictReceipts.length > 0
+              }
+            >
+              {closingSession
+                ? "Closing Session..."
+                : "Close Collection Session"}
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* ----------------------------------------
           LAST CREATED RECEIPT
       ----------------------------------------- */}
 
@@ -1117,12 +1411,17 @@ export function DashboardPage() {
 
           <Button
             type="submit"
-            disabled={creating}
+            disabled={
+              creating ||
+              session.sessionStatus !== "open"
+            }
             className="w-full"
           >
             {creating
               ? "Creating Receipt..."
-              : `Create Receipt #${session.currentNumber}`}
+              : session.sessionStatus !== "open"
+                ? "Collection Session Completed"
+                : `Create Receipt #${session.currentNumber}`}
           </Button>
         </div>
       </form>
@@ -1164,7 +1463,10 @@ export function DashboardPage() {
               onClick={() =>
                 void handleSyncNextReceipt()
               }
-              disabled={historyLoading}
+              disabled={
+                historyLoading ||
+                session.sessionStatus !== "open"
+              }
             >
               Sync Next
             </Button>
