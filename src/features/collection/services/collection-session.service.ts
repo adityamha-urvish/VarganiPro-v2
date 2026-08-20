@@ -1,7 +1,7 @@
 import { supabase } from "@/supabase/client";
 
 import {
-  saveBookState,
+  mergeOfflineBookState,
   type OfflineBookState,
 } from "@/lib/offline/offline-db";
 
@@ -321,7 +321,7 @@ export async function initializeCollectionSession(): Promise<
   /*
    * 10. Persist the assignment into IndexedDB.
    */
-  await saveBookState(bookState);
+  await mergeOfflineBookState(bookState);
 
   /*
    * 11. Return the initialized context.

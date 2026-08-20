@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { saveBookState, sessionState } = vi.hoisted(() => ({
-  saveBookState: vi.fn(),
+const { mergeOfflineBookState, sessionState } = vi.hoisted(() => ({
+  mergeOfflineBookState: vi.fn(),
   sessionState: {
     open: null as object | null,
     completed: null as object | null,
@@ -13,7 +13,7 @@ function result(data: object | null) {
 }
 
 vi.mock("@/lib/offline/offline-db", () => ({
-  saveBookState,
+  mergeOfflineBookState,
 }));
 
 vi.mock("@/supabase/client", () => ({
@@ -92,7 +92,7 @@ import { initializeCollectionSession } from "./collection-session.service";
 
 describe("initializeCollectionSession", () => {
   beforeEach(() => {
-    saveBookState.mockReset();
+    mergeOfflineBookState.mockReset();
   });
 
   it("restores the latest completed session when no open session exists", async () => {
@@ -117,7 +117,7 @@ describe("initializeCollectionSession", () => {
       receiptBookId: "book-1",
       currentNumber: 104,
     });
-    expect(saveBookState).toHaveBeenCalledWith(
+    expect(mergeOfflineBookState).toHaveBeenCalledWith(
       expect.objectContaining({
         collectionSessionId: "completed-1",
         nextLocalNumber: 104,

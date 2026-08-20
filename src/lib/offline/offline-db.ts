@@ -388,6 +388,101 @@ export async function getBookState(
   );
 }
 
+/**
+ * Merges the server's next expected receipt number with this device's
+ * persisted state so a refresh cannot reuse a locally issued number.
+ */
+export async function mergeOfflineBookState(
+  serverState: OfflineBookState
+): Promise<OfflineBookState> {
+  const db = await openDatabase();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(
+      [RECEIPTS_STORE, META_STORE],
+      "readwrite"
+    );
+
+    const receiptsStore = transaction.objectStore(RECEIPTS_STORE);
+    const metadataStore = transaction.objectStore(META_STORE);
+
+    const stateRequest = metadataStore.get(serverState.receiptBookId);
+    const receiptsRequest = receiptsStore
+      .index("byReceiptBook")
+      .getAll(serverState.receiptBookId);
+
+    let storedState: OfflineBookState | null = null;
+    let localReceipts: LocalReceipt[] | null = null;
+    let mergedState: OfflineBookState | null = null;
+    let stateLoaded = false;
+    let receiptsLoaded = false;
+
+    function saveMergedState() {
+      if (!stateLoaded || !receiptsLoaded || !localReceipts) {
+        return;
+      }
+
+      const receiptFloor = localReceipts.reduce(
+        (nextNumber, receipt) => Math.max(nextNumber, receipt.receiptNumber + 1),
+        serverState.nextLocalNumber
+      );
+
+      mergedState = {
+        ...serverState,
+        nextLocalNumber: Math.max(
+          serverState.nextLocalNumber,
+          storedState?.nextLocalNumber ?? serverState.nextLocalNumber,
+          receiptFloor
+        ),
+        updatedAt: new Date().toISOString(),
+      };
+
+      metadataStore.put(mergedState);
+    }
+
+    stateRequest.onsuccess = () => {
+      storedState = (stateRequest.result as OfflineBookState | undefined) ?? null;
+      stateLoaded = true;
+      saveMergedState();
+    };
+
+    receiptsRequest.onsuccess = () => {
+      localReceipts = receiptsRequest.result as LocalReceipt[];
+      receiptsLoaded = true;
+      saveMergedState();
+    };
+
+    stateRequest.onerror = () => {
+      transaction.abort();
+    };
+
+    receiptsRequest.onerror = () => {
+      transaction.abort();
+    };
+
+    transaction.oncomplete = () => {
+      db.close();
+      resolve(mergedState ?? serverState);
+    };
+
+    transaction.onerror = () => {
+      db.close();
+      reject(
+        transaction.error ??
+          new Error("Unable to merge offline book state")
+      );
+    };
+
+    transaction.onabort = () => {
+      db.close();
+      reject(
+        transaction.error ??
+          new Error("Offline book-state merge was aborted")
+      );
+    };
+  });
+}
+
 /* -------------------------------------------------
    ATOMIC LOCAL RECEIPT CREATION
 ------------------------------------------------- */

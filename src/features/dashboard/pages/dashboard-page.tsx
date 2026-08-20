@@ -18,7 +18,7 @@ import {
 
 import {
   getLocalReceipts,
-  saveBookState,
+  mergeOfflineBookState,
   type LocalReceipt,
 } from "@/lib/offline/offline-db";
 
@@ -665,17 +665,7 @@ export function DashboardPage() {
   async function ensureOfflineBookState(
     activeSession: CollectionSessionContext
   ) {
-    const currentNumber =
-      activeSession.currentNumber ??
-      (activeSession.startNumber - 1);
-
-    const nextLocalNumber =
-      Math.max(
-        activeSession.startNumber,
-        currentNumber + 1
-      );
-
-    await saveBookState({
+    await mergeOfflineBookState({
       receiptBookId: activeSession.receiptBookId,
       organizationId: activeSession.organizationId,
       eventId: activeSession.eventId,
@@ -685,7 +675,7 @@ export function DashboardPage() {
       prefix: activeSession.prefix,
       startNumber: activeSession.startNumber,
       endNumber: activeSession.endNumber,
-      nextLocalNumber,
+      nextLocalNumber: activeSession.currentNumber,
       updatedAt: new Date().toISOString(),
     });
   }
