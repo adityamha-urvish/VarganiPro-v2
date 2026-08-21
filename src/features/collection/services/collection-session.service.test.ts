@@ -63,22 +63,29 @@ vi.mock("@/supabase/client", () => ({
       }
 
       if (table === "receipt_books") {
+        let receiptBookId = "";
         return {
           select: () => ({
-            eq: () => ({
+            eq: (_column: string, value: string) => {
+              receiptBookId = value;
+              return {
               maybeSingle: async () =>
                 result({
-                  id: "book-1",
+                  id: receiptBookId,
                   book_number: "BOOK-1",
                   prefix: "VP-",
                   start_number: 100,
                   end_number: 199,
                   current_number: 104,
                   status: "available",
-                  assigned_volunteer_id: "another-volunteer",
-                  checked_out_session_id: "completed-1",
+                  assigned_volunteer_id: "volunteer-1",
+                  checked_out_session_id:
+                    receiptBookId === "book-open"
+                      ? "open-1"
+                      : "completed-1",
                 }),
-            }),
+              };
+            },
           }),
         };
       }
@@ -123,5 +130,48 @@ describe("initializeCollectionSession", () => {
         nextLocalNumber: 104,
       })
     );
+  });
+
+  it("prefers an open session when completed history also exists", async () => {
+    sessionState.open = [
+      {
+        id: "open-1",
+        organization_id: "org-1",
+        event_id: "event-open",
+        volunteer_id: "volunteer-1",
+        receipt_book_id: "book-open",
+        status: "open",
+        started_at: "2026-08-21T01:00:00.000Z",
+      },
+    ];
+    sessionState.completed = [
+      {
+        id: "completed-1",
+        organization_id: "org-1",
+        event_id: "event-completed",
+        volunteer_id: "volunteer-1",
+        receipt_book_id: "book-completed",
+        status: "completed",
+        started_at: "2026-08-21T00:00:00.000Z",
+      },
+    ];
+
+    const session = await initializeCollectionSession();
+
+    expect(session).toMatchObject({
+      sessionId: "open-1",
+      eventId: "event-open",
+      receiptBookId: "book-open",
+      sessionStatus: "open",
+      currentNumber: 104,
+    });
+    expect(mergeOfflineBookState).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collectionSessionId: "open-1",
+        eventId: "event-open",
+        nextLocalNumber: 104,
+      })
+    );
+    expect(session.sessionId).not.toBe("completed-1");
   });
 });
