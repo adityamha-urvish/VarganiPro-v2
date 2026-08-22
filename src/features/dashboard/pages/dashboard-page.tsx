@@ -29,6 +29,7 @@ import { ReceiptCreationForm, type PaymentMode } from "../components/receipt-cre
 import { ReceiptHistoryPanel } from "../components/receipt-history-panel";
 import { ReceiptPreviewDialog } from "../components/receipt-preview-dialog";
 import { SessionSummaryCard } from "../components/session-summary-card";
+import { StartCollectionCard } from "../components/start-collection-card";
 import { printReceipt } from "../utils/print-receipt";
 
 type AdminHandover = {
@@ -1390,27 +1391,21 @@ export function DashboardPage() {
   if (!session && !isAdmin) {
     return (
       <div className="space-y-6 p-6">
-        <div>
-          <h1 className="text-2xl font-semibold">Start Collection</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Select an active event and an available receipt book to begin collecting.</p>
-        </div>
-        <div className="rounded-lg border bg-card p-5">
-          {startSessionError && <div className="mb-5 rounded-lg border border-red-200 bg-red-50 p-3"><p className="text-sm text-red-700">{startSessionError}</p></div>}
-          <div className="grid gap-5 sm:grid-cols-2">
-            <div><label htmlFor="start-event" className="mb-2 block text-sm font-medium">Event</label>
-              <select id="start-event" value={selectedEventId} onChange={(e) => { setSelectedEventId(e.target.value); void loadAvailableBooks(e.target.value); }} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" disabled={startSessionLoading}>
-                <option value="">Select an event</option>{availableEvents.map((event) => <option key={event.id} value={event.id}>{event.name} ({event.code})</option>)}
-              </select>
-            </div>
-            <div><label htmlFor="start-receipt-book" className="mb-2 block text-sm font-medium">Receipt Book</label>
-              <select id="start-receipt-book" value={selectedBookId} onChange={(e) => setSelectedBookId(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" disabled={startSessionLoading || !selectedEventId || availableBooks.length===0}>
-                <option value="">{availableBooks.length===0 ? 'No available receipt books' : 'Select a receipt book'}</option>{availableBooks.map((book) => <option key={book.id} value={book.id}>{book.book_number} — {book.prefix}{book.current_number ?? book.start_number}-{book.end_number}</option>)}
-              </select>
-            </div>
-          </div>
-          {selectedBookId && <div className="mt-5 rounded-lg border bg-muted/30 p-4">{(() => { const book=availableBooks.find((item)=>item.id===selectedBookId); return book ? <div className="grid gap-3 sm:grid-cols-3"><div><p className="text-xs text-muted-foreground">Book Number</p><p className="font-semibold">{book.book_number}</p></div><div><p className="text-xs text-muted-foreground">Receipt Range</p><p className="font-semibold">{book.prefix}{book.current_number ?? book.start_number} – {book.prefix}{book.end_number}</p></div><div><p className="text-xs text-muted-foreground">Status</p><p className="font-semibold capitalize">{book.status}</p></div></div> : null; })()}</div>}
-          <div className="mt-6 flex justify-end"><Button type="button" onClick={() => void handleStartCollectionSession()} disabled={startSessionLoading || !selectedEventId || !selectedBookId}>{startSessionLoading ? 'Starting Collection...' : 'Start Collection'}</Button></div>
-        </div>
+        <StartCollectionCard
+          idPrefix="start"
+          events={availableEvents}
+          books={availableBooks}
+          selectedEventId={selectedEventId}
+          selectedBookId={selectedBookId}
+          loading={startSessionLoading}
+          error={startSessionError}
+          onEventChange={(value) => {
+            setSelectedEventId(value);
+            void loadAvailableBooks(value);
+          }}
+          onBookChange={(value) => setSelectedBookId(value)}
+          onStartCollection={() => void handleStartCollectionSession()}
+        />
       </div>
     );
   }
@@ -1569,78 +1564,21 @@ export function DashboardPage() {
       )}
 
       {!session && isAdmin && (
-        <div className="rounded-lg border bg-card p-5">
-          <div>
-            <h2 className="text-xl font-semibold">Start Collection</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Select an active event and an available receipt book to begin collecting.
-            </p>
-          </div>
-
-          {startSessionError && (
-            <div className="mt-5 rounded-lg border border-red-200 bg-red-50 p-3">
-              <p className="text-sm text-red-700">{startSessionError}</p>
-            </div>
-          )}
-
-          <div className="mt-5 grid gap-5 sm:grid-cols-2">
-            <div>
-              <label htmlFor="admin-start-event" className="mb-2 block text-sm font-medium">
-                Event
-              </label>
-              <select
-                id="admin-start-event"
-                value={selectedEventId}
-                onChange={(event) => {
-                  const value = event.target.value;
-                  setSelectedEventId(value);
-                  void loadAvailableBooks(value);
-                }}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                disabled={startSessionLoading}
-              >
-                <option value="">Select an event</option>
-                {availableEvents.map((event) => (
-                  <option key={event.id} value={event.id}>
-                    {event.name} ({event.code})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label htmlFor="admin-start-book" className="mb-2 block text-sm font-medium">
-                Receipt Book
-              </label>
-              <select
-                id="admin-start-book"
-                value={selectedBookId}
-                onChange={(event) => setSelectedBookId(event.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                disabled={startSessionLoading || !selectedEventId || availableBooks.length === 0}
-              >
-                <option value="">
-                  {availableBooks.length === 0 ? "No available receipt books" : "Select a receipt book"}
-                </option>
-                {availableBooks.map((book) => (
-                  <option key={book.id} value={book.id}>
-                    {book.book_number} — {book.prefix}{book.current_number ?? book.start_number}-{book.end_number}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="mt-6 flex justify-end">
-            <Button
-              type="button"
-              onClick={() => void handleStartCollectionSession()}
-              disabled={startSessionLoading || !selectedEventId || !selectedBookId}
-            >
-              {startSessionLoading ? "Starting Collection..." : "Start Collection"}
-            </Button>
-          </div>
-        </div>
+        <StartCollectionCard
+          idPrefix="admin-start"
+          events={availableEvents}
+          books={availableBooks}
+          selectedEventId={selectedEventId}
+          selectedBookId={selectedBookId}
+          loading={startSessionLoading}
+          error={startSessionError}
+          onEventChange={(value) => {
+            setSelectedEventId(value);
+            void loadAvailableBooks(value);
+          }}
+          onBookChange={(value) => setSelectedBookId(value)}
+          onStartCollection={() => void handleStartCollectionSession()}
+        />
       )}
 
       {session && (<>
@@ -1886,105 +1824,23 @@ export function DashboardPage() {
       ----------------------------------------- */}
 
       {session.sessionStatus === "completed" && (
-        <div className="rounded-lg border bg-card p-5">
-          <div>
-            <h2 className="text-xl font-semibold">Start New Collection</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Your previous collection is completed. Start a new session with an available receipt book.
-            </p>
-          </div>
-
-          {startSessionError && (
-            <div className="mt-5 rounded-lg border border-red-200 bg-red-50 p-3">
-              <p className="text-sm text-red-700">{startSessionError}</p>
-            </div>
-          )}
-
-          <div className="mt-5 grid gap-5 sm:grid-cols-2">
-            <div>
-              <label htmlFor="next-event" className="mb-2 block text-sm font-medium">
-                Event
-              </label>
-              <select
-                id="next-event"
-                value={selectedEventId}
-                onChange={(event) => {
-                  const value = event.target.value;
-                  setSelectedEventId(value);
-                  void loadAvailableBooks(value);
-                }}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                disabled={startSessionLoading}
-              >
-                <option value="">Select an event</option>
-                {availableEvents.map((event) => (
-                  <option key={event.id} value={event.id}>
-                    {event.name} ({event.code})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label htmlFor="next-receipt-book" className="mb-2 block text-sm font-medium">
-                Receipt Book
-              </label>
-              <select
-                id="next-receipt-book"
-                value={selectedBookId}
-                onChange={(event) => setSelectedBookId(event.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                disabled={startSessionLoading || !selectedEventId || availableBooks.length === 0}
-              >
-                <option value="">
-                  {availableBooks.length === 0 ? "No available receipt books" : "Select a receipt book"}
-                </option>
-                {availableBooks.map((book) => (
-                  <option key={book.id} value={book.id}>
-                    {book.book_number} — {book.prefix}{book.current_number ?? book.start_number}-{book.end_number}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {selectedBookId && (
-            <div className="mt-5 rounded-lg border bg-muted/30 p-4">
-              {(() => {
-                const book = availableBooks.find((item) => item.id === selectedBookId);
-                if (!book) return null;
-                return (
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Book Number</p>
-                      <p className="font-semibold">{book.book_number}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Receipt Range</p>
-                      <p className="font-semibold">
-                        {book.prefix}{book.current_number ?? book.start_number} – {book.prefix}{book.end_number}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Status</p>
-                      <p className="font-semibold capitalize">{book.status}</p>
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
-          )}
-
-          <div className="mt-6 flex justify-end">
-            <Button
-              type="button"
-              onClick={() => void handleStartCollectionSession()}
-              disabled={startSessionLoading || !selectedEventId || !selectedBookId}
-            >
-              {startSessionLoading ? "Starting Collection..." : "Start Collection"}
-            </Button>
-          </div>
-        </div>
+        <StartCollectionCard
+          title="Start New Collection"
+          description="Your previous collection is completed. Start a new session with an available receipt book."
+          idPrefix="next"
+          events={availableEvents}
+          books={availableBooks}
+          selectedEventId={selectedEventId}
+          selectedBookId={selectedBookId}
+          loading={startSessionLoading}
+          error={startSessionError}
+          onEventChange={(value) => {
+            setSelectedEventId(value);
+            void loadAvailableBooks(value);
+          }}
+          onBookChange={(value) => setSelectedBookId(value)}
+          onStartCollection={() => void handleStartCollectionSession()}
+        />
       )}
 
       {/* ----------------------------------------
