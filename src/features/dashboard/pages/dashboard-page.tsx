@@ -24,8 +24,9 @@ import {
 
 import { syncNextReceipt } from "@/lib/offline/receipt-sync";
 
+import { LastCreatedReceiptCard } from "../components/last-created-receipt-card";
 import { ReceiptCreationForm, type PaymentMode } from "../components/receipt-creation-form";
-import { ReceiptHistoryPanel, getStatusLabel } from "../components/receipt-history-panel";
+import { ReceiptHistoryPanel } from "../components/receipt-history-panel";
 import { ReceiptPreviewDialog } from "../components/receipt-preview-dialog";
 
 type AdminHandover = {
@@ -2302,54 +2303,11 @@ export function DashboardPage() {
           LAST CREATED RECEIPT
       ----------------------------------------- */}
 
-      {createdReceipt && (
-        <div className="rounded-lg border border-green-200 bg-green-50 p-5">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-medium text-green-700">
-                Receipt created
-              </p>
-
-              <p className="mt-1 text-2xl font-bold text-green-800">
-                #{createdReceipt.receiptNumber}
-              </p>
-
-              <p className="mt-1 text-sm text-green-700">
-                {createdReceipt.donorName} — ₹
-                {createdReceipt.amount.toFixed(2)}
-              </p>
-
-              <p className="mt-2 text-xs text-green-700">
-                Status:{" "}
-                {getStatusLabel(
-                  createdReceipt.syncStatus
-                )}
-              </p>
-            </div>
-
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() =>
-                  setReceiptToView(createdReceipt)
-                }
-              >
-                View Receipt
-              </Button>
-
-              <Button
-                type="button"
-                onClick={() =>
-                  handlePrintReceipt(createdReceipt)
-                }
-              >
-                Print Receipt
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <LastCreatedReceiptCard
+        receipt={createdReceipt}
+        onViewReceipt={(receipt) => setReceiptToView(receipt)}
+        onPrintReceipt={(receipt) => handlePrintReceipt(receipt)}
+      />
 
       {/* ----------------------------------------
           SYNC MESSAGE
