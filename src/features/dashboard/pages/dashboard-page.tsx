@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import type { FormEvent } from "react";
 
 import { supabase } from "@/supabase/client";
 
@@ -7,11 +6,6 @@ import {
   initializeCollectionSession,
   type CollectionSessionContext,
 } from "@/features/collection/services/collection-session.service";
-
-import {
-  createLocalReceipt,
-  type CreateLocalReceiptInput,
-} from "@/lib/offline/receipt-store";
 
 import {
   getLocalReceipts,
@@ -23,13 +17,14 @@ import { syncNextReceipt } from "@/lib/offline/receipt-sync";
 
 import { AdminHandoverPanel } from "../components/admin-handover-panel";
 import { LastCreatedReceiptCard } from "../components/last-created-receipt-card";
-import { ReceiptCreationForm, type PaymentMode } from "../components/receipt-creation-form";
+import { ReceiptCreationForm } from "../components/receipt-creation-form";
 import { ReceiptHistoryPanel } from "../components/receipt-history-panel";
 import { ReceiptPreviewDialog } from "../components/receipt-preview-dialog";
 import { SessionSummaryCard } from "../components/session-summary-card";
 import { StartCollectionCard } from "../components/start-collection-card";
 import { VolunteerHandoverCard } from "../components/volunteer-handover-card";
 import { useAdminHandovers } from "../hooks/use-admin-handovers";
+import { useReceiptCreation } from "../hooks/use-receipt-creation";
 import { printReceipt } from "../utils/print-receipt";
 import { calculateReceiptAggregates } from "../utils/receipt-aggregates";
 
@@ -66,38 +61,33 @@ export function DashboardPage() {
   const [error, setError] =
     useState<string | null>(null);
 
-  const [donorName, setDonorName] =
-    useState("");
-
-  const [donorMobile, setDonorMobile] =
-    useState("");
-
-  const [amount, setAmount] =
-    useState("");
-
-  const [paymentMode, setPaymentMode] =
-    useState<PaymentMode>("cash");
-
-  const [paymentReference, setPaymentReference] =
-    useState("");
-
-  const [notes, setNotes] =
-    useState("");
-
-  const [creating, setCreating] =
-    useState(false);
-
-  const [createdReceipt, setCreatedReceipt] =
-    useState<LocalReceipt | null>(null);
+  const {
+    donorName,
+    setDonorName,
+    donorMobile,
+    setDonorMobile,
+    amount,
+    setAmount,
+    paymentMode,
+    setPaymentMode,
+    paymentReference,
+    setPaymentReference,
+    notes,
+    setNotes,
+    creating,
+    createError,
+    setCreateError,
+    createdReceipt,
+    syncMessage,
+    setSyncMessage,
+    handleCreateReceipt,
+  } = useReceiptCreation({
+    session,
+    onReceiptHistoryRefresh: loadReceiptHistory,
+  });
 
   const [receiptToView, setReceiptToView] =
     useState<LocalReceipt | null>(null);
-
-  const [createError, setCreateError] =
-    useState<string | null>(null);
-
-  const [syncMessage, setSyncMessage] =
-    useState<string | null>(null);
 
   const [receipts, setReceipts] =
     useState<LocalReceipt[]>([]);
@@ -569,205 +559,6 @@ export function DashboardPage() {
       void loadStartSessionOptions();
     }
   }, [loading, session?.sessionId, isAdmin, organizationId]);
-
-  /*
-   * Create the next local receipt.
-   */
-  async function handleCreateReceipt(
-    event: FormEvent<HTMLFormElement>
-  ) {
-    event.preventDefault();
-
-    if (!session) {
-      setCreateError(
-        "Collection session is not initialized."
-      );
-
-      return;
-    }
-
-    setCreateError(null);
-    setSyncMessage(null);
-    setCreating(true);
-
-    try {
-      const parsedAmount = Number(amount);
-
-      if (
-        !Number.isFinite(parsedAmount) ||
-        parsedAmount <= 0
-      ) {
-        throw new Error(
-          "Amount must be greater than zero."
-        );
-      }
-
-      if (!donorName.trim()) {
-        throw new Error(
-          "Donor name is required."
-        );
-      }
-
-      const input: CreateLocalReceiptInput = {
-        organizationId:
-          session.organizationId,
-
-        eventId:
-          session.eventId,
-
-        collectionSessionId:
-          session.sessionId,
-
-        receiptBookId:
-          session.receiptBookId,
-
-        volunteerId:
-          session.volunteerId,
-
-        propertyId: null,
-
-        donorName:
-          donorName.trim(),
-
-        donorMobile:
-          donorMobile.trim() || null,
-
-        amount:
-          parsedAmount,
-
-        paymentMode,
-
-        paymentReference:
-          paymentReference.trim() || null,
-
-        notes:
-          notes.trim() || null,
-      };
-
-      /*
-       * Same tested local receipt creation
-       * path used for receipts #104 and #105.
-       */
-      const receipt =
-        await createLocalReceipt(input);
-
-      console.log(
-        "LOCAL RECEIPT CREATED:",
-        receipt
-      );
-
-      setCreatedReceipt(receipt);
-
-      /*
-       * Show the receipt immediately in local
-       * history before attempting synchronization.
-       */
-      await loadReceiptHistory(
-        session.receiptBookId
-      );
-
-      /*
-       * Clear form for next receipt.
-       */
-      setDonorName("");
-      setDonorMobile("");
-      setAmount("");
-      setPaymentMode("cash");
-      setPaymentReference("");
-      setNotes("");
-
-      /*
-       * Try synchronization.
-       */
-      try {
-        const syncResult =
-          await syncNextReceipt(
-            session.receiptBookId
-          );
-
-        /*
-         * syncNextReceipt can legitimately
-         * return null when there is nothing
-         * pending to synchronize.
-         */
-        if (!syncResult) {
-          await loadReceiptHistory(
-            session.receiptBookId
-          );
-
-          setSyncMessage(
-            "Receipt created locally. There are no receipts currently waiting to sync."
-          );
-
-          return;
-        }
-
-        console.log(
-          "SYNC RESULT:",
-          syncResult
-        );
-
-        /*
-         * Reload history so the UI reflects
-         * the final synchronization state.
-         */
-        await loadReceiptHistory(
-          session.receiptBookId
-        );
-
-        if (syncResult.success) {
-          if (syncResult.alreadyExists) {
-            setSyncMessage(
-              "Receipt already existed on the server. No duplicate was created."
-            );
-          } else {
-            setSyncMessage(
-              "Receipt created and synced successfully."
-            );
-          }
-        } else if (syncResult.conflict) {
-          setSyncMessage(
-            "Receipt created locally, but synchronization requires attention."
-          );
-        } else {
-          setSyncMessage(
-            "Receipt created locally and is waiting to sync."
-          );
-        }
-      } catch (syncError) {
-        console.error(
-          "SYNC ERROR:",
-          syncError
-        );
-
-        /*
-         * The receipt is already safely stored
-         * locally, so it remains available for
-         * later synchronization.
-         */
-        await loadReceiptHistory(
-          session.receiptBookId
-        );
-
-        setSyncMessage(
-          "Receipt created locally. It will remain available for synchronization."
-        );
-      }
-    } catch (err) {
-      console.error(
-        "CREATE RECEIPT ERROR:",
-        err
-      );
-
-      setCreateError(
-        err instanceof Error
-          ? err.message
-          : "Unable to create receipt."
-      );
-    } finally {
-      setCreating(false);
-    }
-  }
 
   /*
    * Manually synchronize the next pending receipt.

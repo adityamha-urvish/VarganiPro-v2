@@ -191,8 +191,8 @@ describe("DashboardPage admin handover verification characterization", () => {
     render(<DashboardPage />);
 
     expect(await screen.findByText("Collection Handover Verification")).toBeTruthy();
-    expect(collectionHandoversQuery).toHaveBeenCalledWith("organization_id", "org-1");
     expect(await screen.findByText("Volunteer Ramesh")).toBeTruthy();
+    expect(collectionHandoversQuery).toHaveBeenCalledWith("organization_id", "org-1");
     expect(screen.getByText("submitted")).toBeTruthy();
     expect(screen.getByText(/Handover ID: handover-sub-1/)).toBeTruthy();
     expect(screen.getByText("All envelopes counted and matched.")).toBeTruthy();
