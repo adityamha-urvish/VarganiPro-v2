@@ -21,7 +21,7 @@ import {
 
 import { syncNextReceipt } from "@/lib/offline/receipt-sync";
 
-import { AdminHandoverPanel, type AdminHandover } from "../components/admin-handover-panel";
+import { AdminHandoverPanel } from "../components/admin-handover-panel";
 import { LastCreatedReceiptCard } from "../components/last-created-receipt-card";
 import { ReceiptCreationForm, type PaymentMode } from "../components/receipt-creation-form";
 import { ReceiptHistoryPanel } from "../components/receipt-history-panel";
@@ -29,7 +29,9 @@ import { ReceiptPreviewDialog } from "../components/receipt-preview-dialog";
 import { SessionSummaryCard } from "../components/session-summary-card";
 import { StartCollectionCard } from "../components/start-collection-card";
 import { VolunteerHandoverCard } from "../components/volunteer-handover-card";
+import { useAdminHandovers } from "../hooks/use-admin-handovers";
 import { printReceipt } from "../utils/print-receipt";
+import { calculateReceiptAggregates } from "../utils/receipt-aggregates";
 
 export function DashboardPage() {
   const [session, setSession] =
@@ -44,17 +46,15 @@ export function DashboardPage() {
   const [organizationId, setOrganizationId] =
     useState<string | null>(null);
 
-  const [adminHandovers, setAdminHandovers] =
-    useState<AdminHandover[]>([]);
-
-  const [adminHandoverLoading, setAdminHandoverLoading] =
-    useState(false);
-
-  const [adminHandoverError, setAdminHandoverError] =
-    useState<string | null>(null);
-
-  const [adminActionLoading, setAdminActionLoading] =
-    useState<string | null>(null);
+  const {
+    adminHandovers,
+    adminHandoverLoading,
+    adminHandoverError,
+    adminActionLoading,
+    loadAdminHandovers,
+    handleVerifyHandover,
+    handleRejectHandover,
+  } = useAdminHandovers({ isAdmin, organizationId });
 
   const [startSessionLoading, setStartSessionLoading] = useState(false);
   const [startSessionError, setStartSessionError] = useState<string | null>(null);
@@ -182,43 +182,16 @@ export function DashboardPage() {
     }
   }
 
-  const issuedReceipts = receipts.filter(
-    (receipt) => receipt.syncStatus === "synced"
-  );
-
-  const pendingReceipts = receipts.filter(
-    (receipt) =>
-      receipt.syncStatus === "pending" ||
-      receipt.syncStatus === "syncing"
-  );
-
-  const conflictReceipts = receipts.filter(
-    (receipt) => receipt.syncStatus === "conflict"
-  );
-
-  const totalAmount = issuedReceipts.reduce(
-    (total, receipt) => total + receipt.amount,
-    0
-  );
-
-  const cashAmount = issuedReceipts
-    .filter((receipt) => receipt.paymentMode === "cash")
-    .reduce((total, receipt) => total + receipt.amount, 0);
-
-  const upiAmount = issuedReceipts
-    .filter((receipt) => receipt.paymentMode === "upi")
-    .reduce((total, receipt) => total + receipt.amount, 0);
-
-  const chequeAmount = issuedReceipts
-    .filter((receipt) => receipt.paymentMode === "cheque")
-    .reduce((total, receipt) => total + receipt.amount, 0);
-
-  const bankTransferAmount = issuedReceipts
-    .filter(
-      (receipt) =>
-        receipt.paymentMode === "bank_transfer"
-    )
-    .reduce((total, receipt) => total + receipt.amount, 0);
+  const {
+    issuedReceipts,
+    pendingReceipts,
+    conflictReceipts,
+    totalAmount,
+    cashAmount,
+    upiAmount,
+    chequeAmount,
+    bankTransferAmount,
+  } = calculateReceiptAggregates(receipts);
 
   /*
    * Load collection handovers for the current admin's organization.
@@ -302,174 +275,8 @@ export function DashboardPage() {
     } catch (err) {
       console.error('START SESSION ERROR:', err);
       setStartSessionError(err instanceof Error ? err.message : 'Unable to start collection session.');
-    } finally { setStartSessionLoading(false); }
-  }
-
-  async function loadAdminHandovers() {
-    if (!isAdmin || !organizationId) {
-      return;
-    }
-
-    setAdminHandoverLoading(true);
-    setAdminHandoverError(null);
-
-    try {
-      const { data, error: handoverError } = await supabase
-        .from("collection_handovers")
-        .select("*")
-        .eq("organization_id", organizationId)
-        .order("created_at", { ascending: false });
-
-      if (handoverError) {
-        throw new Error(handoverError.message);
-      }
-
-      const handoverRows = (data ?? []) as AdminHandover[];
-      const volunteerIds = Array.from(
-        new Set(handoverRows.map((row) => row.volunteer_id))
-      );
-
-      let volunteerNames = new Map<string, string>();
-
-      if (volunteerIds.length > 0) {
-        const { data: volunteers, error: volunteersError } =
-          await supabase
-            .from("volunteers")
-            .select("id, name")
-            .in("id", volunteerIds);
-
-        if (volunteersError) {
-          throw new Error(volunteersError.message);
-        }
-
-        volunteerNames = new Map(
-          (volunteers ?? []).map((volunteer) => [
-            volunteer.id,
-            volunteer.name,
-          ])
-        );
-      }
-
-      setAdminHandovers(
-        handoverRows.map((row) => ({
-          ...row,
-          volunteerName:
-            volunteerNames.get(row.volunteer_id) ?? "Volunteer",
-        }))
-      );
-    } catch (err) {
-      console.error("ADMIN HANDOVER LOAD ERROR:", err);
-      setAdminHandoverError(
-        err instanceof Error
-          ? err.message
-          : "Unable to load collection handovers."
-      );
     } finally {
-      setAdminHandoverLoading(false);
-    }
-  }
-
-  /*
-   * Verify a submitted collection handover.
-   */
-  async function handleVerifyHandover(handoverId: string) {
-    if (!window.confirm("Verify this collection handover?")) {
-      return;
-    }
-
-    setAdminActionLoading(handoverId);
-    setAdminHandoverError(null);
-
-    try {
-      const { data, error: verifyError } = await supabase.rpc(
-        "verify_collection_handover",
-        { p_handover_id: handoverId }
-      );
-
-      if (verifyError) {
-        throw new Error(verifyError.message);
-      }
-
-      if (
-        !data ||
-        typeof data !== "object" ||
-        !("success" in data) ||
-        data.success !== true
-      ) {
-        throw new Error(
-          "Unexpected response while verifying collection handover."
-        );
-      }
-
-      await loadAdminHandovers();
-    } catch (err) {
-      console.error("VERIFY HANDOVER ERROR:", err);
-      setAdminHandoverError(
-        err instanceof Error
-          ? err.message
-          : "Unable to verify collection handover."
-      );
-    } finally {
-      setAdminActionLoading(null);
-    }
-  }
-
-  /*
-   * Reject a submitted collection handover.
-   */
-  async function handleRejectHandover(handoverId: string) {
-    const input = window.prompt(
-      "Enter the reason for rejecting this handover:"
-    );
-
-    if (input === null) {
-      return;
-    }
-
-    const reason = input.trim();
-
-    if (!reason) {
-      setAdminHandoverError("A rejection reason is required.");
-      return;
-    }
-
-    setAdminActionLoading(handoverId);
-    setAdminHandoverError(null);
-
-    try {
-      const { data, error: rejectError } = await supabase.rpc(
-        "reject_collection_handover",
-        {
-          p_handover_id: handoverId,
-          p_rejection_reason: reason,
-        }
-      );
-
-      if (rejectError) {
-        throw new Error(rejectError.message);
-      }
-
-      if (
-        !data ||
-        typeof data !== "object" ||
-        !("success" in data) ||
-        data.success !== true
-      ) {
-        throw new Error(
-          "Unexpected response while rejecting collection handover."
-        );
-      }
-
-      await loadAdminHandovers();
-    } catch (err) {
-      console.error("REJECT HANDOVER ERROR:", err);
-      setAdminHandoverError(
-        err instanceof Error
-          ? err.message
-          : "Unable to reject collection handover."
-      );
-    } finally {
-      setAdminActionLoading(null);
+      setStartSessionLoading(false);
     }
   }
 
@@ -762,12 +569,6 @@ export function DashboardPage() {
       void loadStartSessionOptions();
     }
   }, [loading, session?.sessionId, isAdmin, organizationId]);
-
-  useEffect(() => {
-    if (isAdmin && organizationId) {
-      void loadAdminHandovers();
-    }
-  }, [isAdmin, organizationId]);
 
   /*
    * Create the next local receipt.
