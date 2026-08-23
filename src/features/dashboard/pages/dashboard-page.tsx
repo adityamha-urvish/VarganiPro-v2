@@ -24,6 +24,7 @@ import { SessionSummaryCard } from "../components/session-summary-card";
 import { StartCollectionCard } from "../components/start-collection-card";
 import { VolunteerHandoverCard } from "../components/volunteer-handover-card";
 import { useAdminHandovers } from "../hooks/use-admin-handovers";
+import { useCloseSession } from "../hooks/use-close-session";
 import { useReceiptCreation } from "../hooks/use-receipt-creation";
 import { printReceipt } from "../utils/print-receipt";
 import { calculateReceiptAggregates } from "../utils/receipt-aggregates";
@@ -95,14 +96,6 @@ export function DashboardPage() {
   const [historyLoading, setHistoryLoading] =
     useState(false);
 
-  const [closingSession, setClosingSession] =
-    useState(false);
-
-  const [sessionCloseMessage, setSessionCloseMessage] =
-    useState<string | null>(null);
-
-  const [sessionCloseError, setSessionCloseError] =
-    useState<string | null>(null);
 
   const [creatingHandover, setCreatingHandover] =
     useState(false);
@@ -182,6 +175,24 @@ export function DashboardPage() {
     chequeAmount,
     bankTransferAmount,
   } = calculateReceiptAggregates(receipts);
+
+  const {
+    closingSession,
+    sessionCloseMessage,
+    sessionCloseError,
+    handleCloseSession,
+  } = useCloseSession({
+    session,
+    pendingCount: pendingReceipts.length,
+    conflictCount: conflictReceipts.length,
+    receiptCount: issuedReceipts.length,
+    totalAmount,
+    onSessionCompleted: () => {
+      setSession((current) =>
+        current ? { ...current, sessionStatus: "completed" } : current
+      );
+    },
+  });
 
   /*
    * Load collection handovers for the current admin's organization.
@@ -626,82 +637,6 @@ export function DashboardPage() {
           ? err.message
           : "Unable to synchronize receipt."
       );
-    }
-  }
-
-  async function handleCloseSession() {
-    if (!session || session.sessionStatus !== "open") {
-      return;
-    }
-
-    setSessionCloseMessage(null);
-    setSessionCloseError(null);
-
-    if (pendingReceipts.length > 0) {
-      setSessionCloseError(
-        `Cannot close session. ${pendingReceipts.length} receipt(s) are still waiting to sync.`
-      );
-      return;
-    }
-
-    if (conflictReceipts.length > 0) {
-      setSessionCloseError(
-        `Cannot close session. ${conflictReceipts.length} receipt(s) have synchronization conflicts.`
-      );
-      return;
-    }
-
-    const confirmed = window.confirm(
-      `Close this collection session?\n\n` +
-        `Receipts: ${issuedReceipts.length}\n` +
-        `Total: ₹${totalAmount.toFixed(2)}\n\n` +
-        `Once completed, this session cannot be used to create more receipts.`
-    );
-
-    if (!confirmed) return;
-
-    setClosingSession(true);
-
-    try {
-      const { data, error } = await supabase.rpc(
-        "complete_collection_session",
-        { p_collection_session_id: session.sessionId }
-      );
-
-      console.log("COMPLETE SESSION RESPONSE:", data);
-      console.log("COMPLETE SESSION ERROR:", error);
-
-      if (error) throw new Error(error.message);
-
-      if (
-        !data ||
-        typeof data !== "object" ||
-        !("success" in data) ||
-        data.success !== true
-      ) {
-        throw new Error(
-          "Unexpected response while completing collection session."
-        );
-      }
-
-      setSession((current) =>
-        current
-          ? { ...current, sessionStatus: "completed" }
-          : current
-      );
-
-      setSessionCloseMessage(
-        "Collection session completed successfully."
-      );
-    } catch (err) {
-      console.error("COMPLETE SESSION ERROR:", err);
-      setSessionCloseError(
-        err instanceof Error
-          ? err.message
-          : "Unable to complete collection session."
-      );
-    } finally {
-      setClosingSession(false);
     }
   }
 
