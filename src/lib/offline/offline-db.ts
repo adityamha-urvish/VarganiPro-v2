@@ -1,8 +1,55 @@
+import { supabase } from "@/supabase/client";
+
 const DB_NAME = "varganipro-offline";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 const RECEIPTS_STORE = "receipts";
 const META_STORE = "metadata";
+const BUILDINGS_STORE = "buildings";
+const PROPERTIES_STORE = "properties";
+
+export interface CachedBuildingSummary {
+  buildingId: string;
+  eventId: string;
+  organizationId: string;
+  buildingName: string;
+  code: string | null;
+  wing: string | null;
+  areaName: string | null;
+  totalUnits: number;
+  collectedCount: number;
+  pendingCount: number;
+  refusedCount: number;
+  notVisitedCount: number;
+  remainingCount: number;
+  totalAmountCollected: number;
+  lastActivityAt: string | null;
+  cachedAt: string;
+}
+
+export interface CachedPropertyProgress {
+  propertyId: string;
+  buildingId: string;
+  eventId: string;
+  organizationId: string;
+  propertyType: string;
+  unitNumber: string;
+  flatNumber: string | null;
+  floorNumber: number | null;
+  shopName: string | null;
+  ownerName: string | null;
+  contactMobile: string | null;
+  status: "collected" | "pending" | "refused" | "not_visited";
+  receiptCount: number;
+  totalCollectedAmount: number;
+  latestReceiptNumber: number | null;
+  lastReceiptAt: string | null;
+  pendingReason: string | null;
+  followUpTime: string | null;
+  followUpNotes: string | null;
+  followUpAt: string | null;
+  cachedAt: string;
+}
 
 export interface LocalReceipt {
   clientReceiptId: string;
@@ -12,6 +59,7 @@ export interface LocalReceipt {
   collectionSessionId: string;
   receiptBookId: string;
   volunteerId: string;
+  ownerUserId?: string | null;
 
   propertyId: string | null;
 
@@ -54,6 +102,7 @@ export interface OfflineBookState {
   eventId: string;
   collectionSessionId: string;
   volunteerId: string;
+  ownerUserId?: string | null;
 
   bookNumber: string;
   prefix: string;
@@ -64,6 +113,49 @@ export interface OfflineBookState {
   nextLocalNumber: number;
 
   updatedAt: string;
+}
+
+export async function getAuthenticatedUserId(): Promise<string | null> {
+  try {
+    const { data } = await supabase.auth.getUser();
+    return data.user?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Safe RFC 4122 v4 UUID generator that works across all contexts:
+ * - Secure Contexts (HTTPS, localhost) via crypto.randomUUID()
+ * - Insecure Contexts (LAN IP http://192.168.0.x on iOS Safari / WebKit) via crypto.getRandomValues()
+ */
+export function generateUUID(): string {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return crypto.randomUUID();
+  }
+
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.getRandomValues === "function"
+  ) {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    bytes[6] = (bytes[6] & 0x0f) | 0x40; // Version 4
+    bytes[8] = (bytes[8] & 0x3f) | 0x80; // Variant 1 (RFC 4122)
+    const hex = Array.from(bytes, (b) =>
+      b.toString(16).padStart(2, "0")
+    ).join("");
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  }
+
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
 }
 
 function openDatabase(): Promise<IDBDatabase> {
@@ -132,6 +224,59 @@ function openDatabase(): Promise<IDBDatabase> {
             keyPath:
               "receiptBookId",
           }
+        );
+      }
+
+      if (
+        !db.objectStoreNames.contains(
+          BUILDINGS_STORE
+        )
+      ) {
+        const buildings =
+          db.createObjectStore(
+            BUILDINGS_STORE,
+            {
+              keyPath:
+                "buildingId",
+            }
+          );
+        buildings.createIndex(
+          "byEventId",
+          "eventId",
+          { unique: false }
+        );
+      }
+
+      if (
+        !db.objectStoreNames.contains(
+          PROPERTIES_STORE
+        )
+      ) {
+        const properties =
+          db.createObjectStore(
+            PROPERTIES_STORE,
+            {
+              keyPath:
+                "propertyId",
+            }
+          );
+        properties.createIndex(
+          "byBuildingId",
+          "buildingId",
+          { unique: false }
+        );
+        properties.createIndex(
+          "byEventId",
+          "eventId",
+          { unique: false }
+        );
+        properties.createIndex(
+          "byBuildingAndStatus",
+          [
+            "buildingId",
+            "status",
+          ],
+          { unique: false }
         );
       }
     };
@@ -237,8 +382,10 @@ export async function getLocalReceipt(
 }
 
 export async function getPendingReceipts(
-  receiptBookId: string
+  receiptBookId: string,
+  ownerUserId?: string
 ): Promise<LocalReceipt[]> {
+  const currentOwner = ownerUserId ?? (await getAuthenticatedUserId());
   const db = await openDatabase();
 
   return new Promise(
@@ -260,7 +407,7 @@ export async function getPendingReceipts(
       request.onsuccess = () => {
         db.close();
 
-        const receipts =
+        let receipts =
           (
             request.result as LocalReceipt[]
           ).filter(
@@ -270,6 +417,14 @@ export async function getPendingReceipts(
               receipt.syncStatus ===
                 "syncing"
           );
+
+        if (currentOwner) {
+          receipts = receipts.filter(
+            (receipt) =>
+              !receipt.ownerUserId ||
+              receipt.ownerUserId === currentOwner
+          );
+        }
 
         receipts.sort(
           (a, b) =>
@@ -292,6 +447,55 @@ export async function getPendingReceipts(
       };
     }
   );
+}
+
+export async function getPendingReceiptsForOwner(
+  ownerUserId?: string
+): Promise<LocalReceipt[]> {
+  const currentOwner = ownerUserId ?? (await getAuthenticatedUserId());
+  if (!currentOwner) {
+    return [];
+  }
+
+  const db = await openDatabase();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(
+      RECEIPTS_STORE,
+      "readonly"
+    );
+
+    const request = transaction
+      .objectStore(RECEIPTS_STORE)
+      .getAll();
+
+    request.onsuccess = () => {
+      db.close();
+
+      const allReceipts = request.result as LocalReceipt[];
+      const pending = allReceipts.filter(
+        (receipt) =>
+          (!receipt.ownerUserId ||
+            receipt.ownerUserId === currentOwner) &&
+          (receipt.syncStatus === "pending" ||
+            receipt.syncStatus === "syncing" ||
+            receipt.syncStatus === "conflict")
+      );
+
+      resolve(pending);
+    };
+
+    request.onerror = () => {
+      db.close();
+
+      reject(
+        request.error ??
+          new Error(
+            "Unable to read pending receipts for owner"
+          )
+      );
+    };
+  });
 }
 
 /* -------------------------------------------------
@@ -393,8 +597,10 @@ export async function getBookState(
  * persisted state so a refresh cannot reuse a locally issued number.
  */
 export async function mergeOfflineBookState(
-  serverState: OfflineBookState
+  serverState: OfflineBookState,
+  ownerUserId?: string
 ): Promise<OfflineBookState> {
+  const currentOwner = ownerUserId ?? (await getAuthenticatedUserId());
   const db = await openDatabase();
 
   return new Promise((resolve, reject) => {
@@ -422,13 +628,24 @@ export async function mergeOfflineBookState(
         return;
       }
 
-      const receiptFloor = localReceipts.reduce(
-        (nextNumber, receipt) => Math.max(nextNumber, receipt.receiptNumber + 1),
+      const relevantReceipts = currentOwner
+        ? localReceipts.filter(
+            (r) =>
+              !r.ownerUserId ||
+              r.ownerUserId === currentOwner
+          )
+        : localReceipts;
+
+      const receiptFloor = relevantReceipts.reduce(
+        (nextNumber, receipt) =>
+          Math.max(nextNumber, receipt.receiptNumber + 1),
         serverState.nextLocalNumber
       );
 
       mergedState = {
         ...serverState,
+        ownerUserId:
+          serverState.ownerUserId ?? currentOwner,
         nextLocalNumber: Math.max(
           serverState.nextLocalNumber,
           storedState?.nextLocalNumber ?? serverState.nextLocalNumber,
@@ -484,8 +701,154 @@ export async function mergeOfflineBookState(
 }
 
 /* -------------------------------------------------
-   ATOMIC LOCAL RECEIPT CREATION
+   ATOMIC LOCAL RECEIPT ALLOCATION & CREATION
 ------------------------------------------------- */
+
+export interface AllocateReceiptParams {
+  receiptBookId: string;
+  organizationId: string;
+  eventId: string;
+  collectionSessionId: string;
+  volunteerId: string;
+  ownerUserId?: string | null;
+  propertyId: string | null;
+  donorName: string;
+  donorMobile: string | null;
+  amount: number;
+  paymentMode: "cash" | "upi" | "cheque" | "bank_transfer";
+  paymentReference: string | null;
+  notes: string | null;
+}
+
+/**
+ * Atomically reads current nextLocalNumber, assigns it,
+ * increments the book counter, and stores the receipt
+ * inside a single IndexedDB readwrite transaction.
+ */
+export async function allocateAndCreateLocalReceiptAtomic(
+  input: AllocateReceiptParams
+): Promise<LocalReceipt> {
+  const db = await openDatabase();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(
+      [RECEIPTS_STORE, META_STORE],
+      "readwrite"
+    );
+
+    const receiptsStore = transaction.objectStore(RECEIPTS_STORE);
+    const metadataStore = transaction.objectStore(META_STORE);
+
+    const stateRequest = metadataStore.get(input.receiptBookId);
+    let createdReceipt: LocalReceipt | null = null;
+
+    stateRequest.onsuccess = () => {
+      const bookState = stateRequest.result as OfflineBookState | undefined;
+
+      if (!bookState) {
+        transaction.abort();
+        reject(
+          new Error(
+            "Receipt book is not available offline on this device."
+          )
+        );
+        return;
+      }
+
+      const receiptNumber = bookState.nextLocalNumber;
+
+      if (
+        receiptNumber < bookState.startNumber ||
+        receiptNumber > bookState.endNumber
+      ) {
+        transaction.abort();
+        reject(
+          new Error(
+            "Receipt book has no more available receipt numbers."
+          )
+        );
+        return;
+      }
+
+      const now = new Date().toISOString();
+
+      createdReceipt = {
+        clientReceiptId: generateUUID(),
+        organizationId: input.organizationId,
+        eventId: input.eventId,
+        collectionSessionId: input.collectionSessionId,
+        receiptBookId: input.receiptBookId,
+        volunteerId: input.volunteerId,
+        ownerUserId: input.ownerUserId ?? null,
+        propertyId: input.propertyId,
+        receiptNumber,
+        donorName: input.donorName,
+        donorMobile: input.donorMobile,
+        amount: input.amount,
+        paymentMode: input.paymentMode,
+        paymentReference: input.paymentReference,
+        notes: input.notes,
+        offlineCreatedAt: now,
+        syncStatus: "pending",
+        syncAttempts: 0,
+        lastSyncAttemptAt: null,
+        lastSyncError: null,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      const nextBookState: OfflineBookState = {
+        ...bookState,
+        ownerUserId:
+          bookState.ownerUserId ?? input.ownerUserId ?? null,
+        nextLocalNumber: receiptNumber + 1,
+        updatedAt: now,
+      };
+
+      receiptsStore.put(createdReceipt);
+      metadataStore.put(nextBookState);
+    };
+
+    stateRequest.onerror = () => {
+      transaction.abort();
+      reject(
+        stateRequest.error ??
+          new Error("Failed to read receipt book metadata")
+      );
+    };
+
+    transaction.oncomplete = () => {
+      db.close();
+      if (createdReceipt) {
+        resolve(createdReceipt);
+      } else {
+        reject(
+          new Error(
+            "Receipt allocation completed without a result"
+          )
+        );
+      }
+    };
+
+    transaction.onerror = () => {
+      db.close();
+      reject(
+        transaction.error ??
+          new Error(
+            "Unable to atomically allocate and create local receipt"
+          )
+      );
+    };
+
+    transaction.onabort = () => {
+      db.close();
+      reject(
+        transaction.error ??
+          new Error("Local receipt transaction was aborted")
+      );
+    };
+  });
+}
 
 /**
  * Creates a local receipt and advances
@@ -683,13 +1046,16 @@ export async function updateLocalReceiptSyncState(
     }
   );
 }
+
 /* -------------------------------------------------
    RECEIPT HISTORY
 ------------------------------------------------- */
 
 export async function getLocalReceipts(
-  receiptBookId: string
+  receiptBookId: string,
+  ownerUserId?: string
 ): Promise<LocalReceipt[]> {
+  const currentOwner = ownerUserId ?? (await getAuthenticatedUserId());
   const db = await openDatabase();
 
   return new Promise((resolve, reject) => {
@@ -706,8 +1072,16 @@ export async function getLocalReceipts(
     request.onsuccess = () => {
       db.close();
 
-      const receipts =
+      let receipts =
         request.result as LocalReceipt[];
+
+      if (currentOwner) {
+        receipts = receipts.filter(
+          (receipt) =>
+            !receipt.ownerUserId ||
+            receipt.ownerUserId === currentOwner
+        );
+      }
 
       receipts.sort(
         (a, b) =>
@@ -730,3 +1104,207 @@ export async function getLocalReceipts(
     };
   });
 }
+
+/* -------------------------------------------------
+   BUILDING SUMMARIES CACHE
+------------------------------------------------- */
+
+export async function saveCachedBuildingSummaries(
+  eventId: string,
+  summaries: CachedBuildingSummary[]
+): Promise<void> {
+  const db = await openDatabase();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(BUILDINGS_STORE, "readwrite");
+    const store = transaction.objectStore(BUILDINGS_STORE);
+
+    for (const summary of summaries) {
+      store.put({
+        ...summary,
+        eventId,
+        cachedAt: new Date().toISOString(),
+      });
+    }
+
+    transaction.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+
+    transaction.onerror = () => {
+      db.close();
+      reject(transaction.error ?? new Error("Unable to cache building summaries"));
+    };
+  });
+}
+
+export async function getCachedBuildingSummaries(
+  eventId: string
+): Promise<CachedBuildingSummary[]> {
+  const db = await openDatabase();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(BUILDINGS_STORE, "readonly");
+    const request = transaction
+      .objectStore(BUILDINGS_STORE)
+      .index("byEventId")
+      .getAll(eventId);
+
+    request.onsuccess = () => {
+      db.close();
+      const buildings = (request.result || []) as CachedBuildingSummary[];
+      buildings.sort((a, b) => {
+        const aHasRemaining = a.remainingCount > 0 ? 1 : 0;
+        const bHasRemaining = b.remainingCount > 0 ? 1 : 0;
+        if (aHasRemaining !== bHasRemaining) {
+          return bHasRemaining - aHasRemaining;
+        }
+        if (a.lastActivityAt && b.lastActivityAt) {
+          return (
+            new Date(b.lastActivityAt).getTime() -
+            new Date(a.lastActivityAt).getTime()
+          );
+        }
+        if (a.lastActivityAt) return -1;
+        if (b.lastActivityAt) return 1;
+        return a.buildingName.localeCompare(b.buildingName);
+      });
+      resolve(buildings);
+    };
+
+    request.onerror = () => {
+      db.close();
+      reject(
+        request.error ??
+          new Error("Unable to read cached building summaries")
+      );
+    };
+  });
+}
+
+/* -------------------------------------------------
+   BUILDING PROPERTIES CACHE
+------------------------------------------------- */
+
+export async function saveCachedBuildingProperties(
+  eventId: string,
+  buildingId: string,
+  properties: CachedPropertyProgress[]
+): Promise<void> {
+  const db = await openDatabase();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(PROPERTIES_STORE, "readwrite");
+    const store = transaction.objectStore(PROPERTIES_STORE);
+
+    for (const prop of properties) {
+      store.put({
+        ...prop,
+        eventId,
+        buildingId,
+        cachedAt: new Date().toISOString(),
+      });
+    }
+
+    transaction.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+
+    transaction.onerror = () => {
+      db.close();
+      reject(
+        transaction.error ??
+          new Error("Unable to cache building properties")
+      );
+    };
+  });
+}
+
+export async function getCachedBuildingProperties(
+  eventId: string,
+  buildingId: string
+): Promise<CachedPropertyProgress[]> {
+  const db = await openDatabase();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(PROPERTIES_STORE, "readonly");
+    const request = transaction
+      .objectStore(PROPERTIES_STORE)
+      .index("byBuildingId")
+      .getAll(buildingId);
+
+    request.onsuccess = () => {
+      db.close();
+      let properties = (request.result || []) as CachedPropertyProgress[];
+      properties = properties.filter((p) => p.eventId === eventId);
+      properties.sort((a, b) => {
+        if ((a.floorNumber ?? 0) !== (b.floorNumber ?? 0)) {
+          return (a.floorNumber ?? 0) - (b.floorNumber ?? 0);
+        }
+        return a.unitNumber.localeCompare(b.unitNumber, undefined, {
+          numeric: true,
+          sensitivity: "base",
+        });
+      });
+      resolve(properties);
+    };
+
+    request.onerror = () => {
+      db.close();
+      reject(
+        request.error ??
+          new Error("Unable to read cached building properties")
+      );
+    };
+  });
+}
+
+export async function updateLocalPropertyProgress(
+  eventId: string,
+  buildingId: string,
+  propertyId: string,
+  updates: Partial<CachedPropertyProgress>
+): Promise<void> {
+  const db = await openDatabase();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(PROPERTIES_STORE, "readwrite");
+    const store = transaction.objectStore(PROPERTIES_STORE);
+    const getReq = store.get(propertyId);
+
+    getReq.onsuccess = () => {
+      const existing = getReq.result as CachedPropertyProgress | undefined;
+      if (!existing) {
+        db.close();
+        resolve();
+        return;
+      }
+
+      const updated: CachedPropertyProgress = {
+        ...existing,
+        ...updates,
+        eventId,
+        buildingId,
+        cachedAt: new Date().toISOString(),
+      };
+
+      store.put(updated);
+    };
+
+    transaction.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+
+    transaction.onerror = () => {
+      db.close();
+      reject(
+        transaction.error ??
+          new Error("Unable to update local property progress")
+      );
+    };
+  });
+}
+

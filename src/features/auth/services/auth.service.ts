@@ -91,3 +91,17 @@ export async function login({
 
   return data.user;
 }
+
+export async function logout(): Promise<void> {
+  try {
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      console.error("Supabase signOut error:", error);
+    }
+  } catch (err) {
+    console.error("Unexpected error during signOut:", err);
+  } finally {
+    localStorage.removeItem("vp_user");
+  }
+}

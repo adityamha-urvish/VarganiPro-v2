@@ -20,8 +20,18 @@ const {
   supabaseRpcMock: vi.fn(),
 }));
 
-vi.mock("@/features/collection/services/collection-session.service", () => ({
-  initializeCollectionSession: initializeCollectionSessionMock,
+vi.mock("@/features/collection/services/collection-session.service", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/features/collection/services/collection-session.service")>();
+  return {
+    ...actual,
+    initializeCollectionSession: initializeCollectionSessionMock,
+  };
+});
+
+vi.mock("@/features/collection/services/collection-progress.service", () => ({
+  fetchEventBuildingSummaries: vi.fn(async () => []),
+  fetchBuildingPropertiesProgress: vi.fn(async () => []),
+  recordFollowUp: vi.fn(async () => {}),
 }));
 
 vi.mock("@/lib/offline/receipt-store", () => ({
@@ -35,6 +45,8 @@ vi.mock("@/lib/offline/offline-db", () => ({
 
 vi.mock("@/lib/offline/receipt-sync", () => ({
   syncNextReceipt: syncNextReceiptMock,
+  drainSyncQueue: vi.fn(async () => {}),
+  setupAutoSync: vi.fn(() => () => {}),
 }));
 
 vi.mock("@/supabase/client", () => ({
@@ -429,4 +441,95 @@ describe("DashboardPage receipt creation workflow characterization", () => {
     expect(submitButton).toBeTruthy();
     expect(submitButton).toHaveProperty("disabled", true);
   });
+
+  it("advances the displayed next receipt number immediately after creating receipts without requiring a page refresh", async () => {
+    const session1000: CollectionSessionContext = {
+      ...mockOpenSession,
+      currentNumber: 1000,
+      startNumber: 1000,
+      endNumber: 1010,
+    };
+
+    initializeCollectionSessionMock.mockResolvedValue(session1000);
+
+    const receipt1000 = createSampleLocalReceipt({
+      clientReceiptId: "client-rec-1000",
+      receiptNumber: 1000,
+    });
+    const receipt1001 = createSampleLocalReceipt({
+      clientReceiptId: "client-rec-1001",
+      receiptNumber: 1001,
+    });
+
+    createLocalReceiptMock
+      .mockResolvedValueOnce(receipt1000)
+      .mockResolvedValueOnce(receipt1001);
+
+    syncNextReceiptMock.mockResolvedValue({ success: true, alreadyExists: false });
+
+    render(<DashboardPage />);
+
+    // 1. Initial display
+    expect(await screen.findByText("Receipt #1000")).toBeTruthy();
+
+    const donorNameInput = screen.getByLabelText(/Donor Name/i) as HTMLInputElement;
+    const amountInput = screen.getByLabelText(/Amount/i) as HTMLInputElement;
+    const form = donorNameInput.closest("form");
+
+    // 2. Create receipt #1000
+    fireEvent.change(donorNameInput, { target: { value: "Donor 1000" } });
+    fireEvent.change(amountInput, { target: { value: "500" } });
+    fireEvent.submit(form!);
+
+    // Immediately advances to Receipt #1001 without refresh
+    await waitFor(() => {
+      expect(screen.getByText("Receipt #1001")).toBeTruthy();
+    });
+
+    // 3. Create receipt #1001
+    fireEvent.change(donorNameInput, { target: { value: "Donor 1001" } });
+    fireEvent.change(amountInput, { target: { value: "750" } });
+    fireEvent.submit(form!);
+
+    // Immediately advances to Receipt #1002 without refresh
+    await waitFor(() => {
+      expect(screen.getByText("Receipt #1002")).toBeTruthy();
+    });
+  });
+
+  it("advances the displayed next receipt number when sync fails / device is offline", async () => {
+    const session1000: CollectionSessionContext = {
+      ...mockOpenSession,
+      currentNumber: 1000,
+      startNumber: 1000,
+      endNumber: 1010,
+    };
+
+    initializeCollectionSessionMock.mockResolvedValue(session1000);
+
+    const receipt1000 = createSampleLocalReceipt({
+      clientReceiptId: "client-rec-1000",
+      receiptNumber: 1000,
+    });
+
+    createLocalReceiptMock.mockResolvedValueOnce(receipt1000);
+    syncNextReceiptMock.mockRejectedValueOnce(new Error("Network error"));
+
+    render(<DashboardPage />);
+
+    expect(await screen.findByText("Receipt #1000")).toBeTruthy();
+
+    const donorNameInput = screen.getByLabelText(/Donor Name/i) as HTMLInputElement;
+    const amountInput = screen.getByLabelText(/Amount/i) as HTMLInputElement;
+    const form = donorNameInput.closest("form");
+
+    fireEvent.change(donorNameInput, { target: { value: "Offline Donor" } });
+    fireEvent.change(amountInput, { target: { value: "500" } });
+    fireEvent.submit(form!);
+
+    await waitFor(() => {
+      expect(screen.getByText("Receipt #1001")).toBeTruthy();
+    });
+  });
 });
+

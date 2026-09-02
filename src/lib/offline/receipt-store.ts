@@ -1,6 +1,6 @@
 import {
-  createLocalReceiptAtomic,
-  getBookState,
+  allocateAndCreateLocalReceiptAtomic,
+  getAuthenticatedUserId,
   type LocalReceipt,
 } from "./offline-db";
 
@@ -11,6 +11,7 @@ export interface CreateLocalReceiptInput {
   eventId: string;
   collectionSessionId: string;
   volunteerId: string;
+  ownerUserId?: string | null;
 
   propertyId: string | null;
 
@@ -30,111 +31,29 @@ export interface CreateLocalReceiptInput {
   notes: string | null;
 }
 
-function createClientReceiptId(): string {
-  return crypto.randomUUID();
-}
+let allocationLock: Promise<unknown> = Promise.resolve();
 
 export async function createLocalReceipt(
   input: CreateLocalReceiptInput
 ): Promise<LocalReceipt> {
-  const bookState =
-    await getBookState(
-      input.receiptBookId
-    );
+  const ownerUserId =
+    input.ownerUserId ??
+    (await getAuthenticatedUserId()) ??
+    null;
 
-  if (!bookState) {
-    throw new Error(
-      "Receipt book is not available offline on this device."
-    );
+  const previousLock = allocationLock;
+  let currentResolve: () => void;
+  allocationLock = new Promise<void>((resolve) => {
+    currentResolve = resolve;
+  });
+
+  try {
+    await previousLock;
+    return await allocateAndCreateLocalReceiptAtomic({
+      ...input,
+      ownerUserId,
+    });
+  } finally {
+    currentResolve!();
   }
-
-  const receiptNumber =
-    bookState.nextLocalNumber;
-
-  if (
-    receiptNumber <
-      bookState.startNumber ||
-    receiptNumber >
-      bookState.endNumber
-  ) {
-    throw new Error(
-      "Receipt book has no more available receipt numbers."
-    );
-  }
-
-  const now =
-    new Date().toISOString();
-
-  const receipt: LocalReceipt = {
-    clientReceiptId:
-      createClientReceiptId(),
-
-    organizationId:
-      input.organizationId,
-
-    eventId:
-      input.eventId,
-
-    collectionSessionId:
-      input.collectionSessionId,
-
-    receiptBookId:
-      input.receiptBookId,
-
-    volunteerId:
-      input.volunteerId,
-
-    propertyId:
-      input.propertyId,
-
-    receiptNumber,
-
-    donorName:
-      input.donorName,
-
-    donorMobile:
-      input.donorMobile,
-
-    amount:
-      input.amount,
-
-    paymentMode:
-      input.paymentMode,
-
-    paymentReference:
-      input.paymentReference,
-
-    notes:
-      input.notes,
-
-    offlineCreatedAt: now,
-
-    syncStatus: "pending",
-
-    syncAttempts: 0,
-
-    lastSyncAttemptAt: null,
-
-    lastSyncError: null,
-
-    createdAt: now,
-
-    updatedAt: now,
-  };
-
-  const nextBookState = {
-    ...bookState,
-
-    nextLocalNumber:
-      receiptNumber + 1,
-
-    updatedAt: now,
-  };
-
-  await createLocalReceiptAtomic(
-    receipt,
-    nextBookState
-  );
-
-  return receipt;
 }

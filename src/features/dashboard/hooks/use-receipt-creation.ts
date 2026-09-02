@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { FormEvent } from "react";
 
 import type { CollectionSessionContext } from "@/features/collection/services/collection-session.service";
@@ -7,19 +7,23 @@ import {
   createLocalReceipt,
   type CreateLocalReceiptInput,
 } from "@/lib/offline/receipt-store";
-import { syncNextReceipt } from "@/lib/offline/receipt-sync";
+import { drainSyncQueue, syncNextReceipt } from "@/lib/offline/receipt-sync";
 
 import type { PaymentMode } from "../components/receipt-creation-form";
 
 export interface UseReceiptCreationOptions {
   session: CollectionSessionContext | null;
   onReceiptHistoryRefresh?: (receiptBookId: string) => Promise<void>;
+  onReceiptCreated?: (receipt: LocalReceipt) => void;
 }
 
 export function useReceiptCreation({
   session,
   onReceiptHistoryRefresh,
+  onReceiptCreated,
 }: UseReceiptCreationOptions) {
+  const isSubmittingRef = useRef(false);
+  const [propertyId, setPropertyId] = useState<string | null>(null);
   const [donorName, setDonorName] = useState("");
   const [donorMobile, setDonorMobile] = useState("");
   const [amount, setAmount] = useState("");
@@ -37,11 +41,16 @@ export function useReceiptCreation({
   async function handleCreateReceipt(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
+    if (isSubmittingRef.current || creating) {
+      return;
+    }
+
     if (!session) {
       setCreateError("Collection session is not initialized.");
       return;
     }
 
+    isSubmittingRef.current = true;
     setCreateError(null);
     setSyncMessage(null);
     setCreating(true);
@@ -63,7 +72,7 @@ export function useReceiptCreation({
         collectionSessionId: session.sessionId,
         receiptBookId: session.receiptBookId,
         volunteerId: session.volunteerId,
-        propertyId: null,
+        propertyId: propertyId || null,
         donorName: donorName.trim(),
         donorMobile: donorMobile.trim() || null,
         amount: parsedAmount,
@@ -83,6 +92,12 @@ export function useReceiptCreation({
       setCreatedReceipt(receipt);
 
       /*
+       * Update the session's next receipt number immediately upon local allocation,
+       * ensuring offline tolerance and real-time counter advancement before network sync.
+       */
+      onReceiptCreated?.(receipt);
+
+      /*
        * Show the receipt immediately in local
        * history before attempting synchronization.
        */
@@ -91,6 +106,7 @@ export function useReceiptCreation({
       /*
        * Clear form for next receipt.
        */
+      setPropertyId(null);
       setDonorName("");
       setDonorMobile("");
       setAmount("");
@@ -99,9 +115,13 @@ export function useReceiptCreation({
       setNotes("");
 
       /*
-       * Try synchronization.
+       * Automatic single-flight background sync.
        */
       try {
+        void drainSyncQueue(session.receiptBookId).then(async () => {
+          await onReceiptHistoryRefresh?.(session.receiptBookId);
+        });
+
         const syncResult = await syncNextReceipt(session.receiptBookId);
 
         /*
@@ -113,7 +133,7 @@ export function useReceiptCreation({
           await onReceiptHistoryRefresh?.(session.receiptBookId);
 
           setSyncMessage(
-            "Receipt created locally. There are no receipts currently waiting to sync."
+            "Receipt created locally."
           );
 
           return;
@@ -144,30 +164,27 @@ export function useReceiptCreation({
         }
       } catch (syncError) {
         console.error("SYNC ERROR:", syncError);
-
-        /*
-         * The receipt is already safely stored
-         * locally, so it remains available for
-         * later synchronization.
-         */
-        await onReceiptHistoryRefresh?.(session.receiptBookId);
-
         setSyncMessage(
           "Receipt created locally. It will remain available for synchronization."
         );
       }
-    } catch (err) {
-      console.error("CREATE RECEIPT ERROR:", err);
+    } catch (err: unknown) {
+      console.error("CREATE LOCAL RECEIPT ERROR:", err);
 
       setCreateError(
-        err instanceof Error ? err.message : "Unable to create receipt."
+        err instanceof Error
+          ? err.message
+          : "Unable to create local receipt."
       );
     } finally {
+      isSubmittingRef.current = false;
       setCreating(false);
     }
   }
 
   return {
+    propertyId,
+    setPropertyId,
     donorName,
     setDonorName,
     donorMobile,
@@ -181,12 +198,17 @@ export function useReceiptCreation({
     notes,
     setNotes,
     creating,
+    createdReceipt,
     createError,
     setCreateError,
-    createdReceipt,
-    setCreatedReceipt,
     syncMessage,
     setSyncMessage,
+    onDonorNameChange: setDonorName,
+    onDonorMobileChange: setDonorMobile,
+    onAmountChange: setAmount,
+    onPaymentModeChange: setPaymentMode,
+    onPaymentReferenceChange: setPaymentReference,
+    onNotesChange: setNotes,
     handleCreateReceipt,
   };
 }

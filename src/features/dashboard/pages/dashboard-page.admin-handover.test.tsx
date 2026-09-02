@@ -17,8 +17,18 @@ const {
   volunteersQuery: vi.fn(),
 }));
 
-vi.mock("@/features/collection/services/collection-session.service", () => ({
-  initializeCollectionSession,
+vi.mock("@/features/collection/services/collection-session.service", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/features/collection/services/collection-session.service")>();
+  return {
+    ...actual,
+    initializeCollectionSession,
+  };
+});
+
+vi.mock("@/features/collection/services/collection-progress.service", () => ({
+  fetchEventBuildingSummaries: vi.fn(async () => []),
+  fetchBuildingPropertiesProgress: vi.fn(async () => []),
+  recordFollowUp: vi.fn(async () => {}),
 }));
 
 vi.mock("@/lib/offline/offline-db", () => ({
@@ -28,6 +38,8 @@ vi.mock("@/lib/offline/offline-db", () => ({
 
 vi.mock("@/lib/offline/receipt-sync", () => ({
   syncNextReceipt: vi.fn(),
+  drainSyncQueue: vi.fn(async () => {}),
+  setupAutoSync: vi.fn(() => () => {}),
 }));
 
 const mockSubmittedHandoverRow = {
@@ -190,12 +202,14 @@ describe("DashboardPage admin handover verification characterization", () => {
   it("loads collection handovers scoped to the user's organizationId and renders volunteer details", async () => {
     render(<DashboardPage />);
 
-    expect(await screen.findByText("Collection Handover Verification")).toBeTruthy();
-    expect(await screen.findByText("Volunteer Ramesh")).toBeTruthy();
+    const tab = await screen.findByTestId("nav-tab-handovers");
+    fireEvent.click(tab);
+
+    expect(await screen.findByText(/Handover Verification/i)).toBeTruthy();
+    expect(await screen.findByText(/Volunteer Ramesh/)).toBeTruthy();
     expect(collectionHandoversQuery).toHaveBeenCalledWith("organization_id", "org-1");
-    expect(screen.getByText("submitted")).toBeTruthy();
-    expect(screen.getByText(/Handover ID: handover-sub-1/)).toBeTruthy();
-    expect(screen.getByText("All envelopes counted and matched.")).toBeTruthy();
+    expect(screen.getByText(/Submitted/i)).toBeTruthy();
+    expect(screen.getByText(/All envelopes counted and matched./)).toBeTruthy();
   });
 
   it("verifies a submitted handover when the admin confirms", async () => {
@@ -203,7 +217,10 @@ describe("DashboardPage admin handover verification characterization", () => {
 
     render(<DashboardPage />);
 
-    const verifyButton = await screen.findByRole("button", { name: "Verify" });
+    const tab = await screen.findByTestId("nav-tab-handovers");
+    fireEvent.click(tab);
+
+    const verifyButton = await screen.findByRole("button", { name: /Verify/i });
     expect(verifyButton).toBeTruthy();
 
     fireEvent.click(verifyButton);
@@ -215,15 +232,20 @@ describe("DashboardPage admin handover verification characterization", () => {
     });
   });
 
-  it("cancels rejection when window.prompt is dismissed (null)", async () => {
-    vi.spyOn(window, "prompt").mockReturnValue(null);
-
+  it("cancels rejection when modal is dismissed / cancelled", async () => {
     render(<DashboardPage />);
 
-    const rejectButton = await screen.findByRole("button", { name: "Reject" });
+    const tab = await screen.findByTestId("nav-tab-handovers");
+    fireEvent.click(tab);
+
+    const rejectButton = await screen.findByRole("button", { name: /Reject/i });
     expect(rejectButton).toBeTruthy();
 
     fireEvent.click(rejectButton);
+
+    // Cancel modal
+    const cancelBtn = screen.getByRole("button", { name: /रद्द करा \(Cancel\)/i });
+    fireEvent.click(cancelBtn);
 
     expect(supabaseRpc).not.toHaveBeenCalledWith(
       "reject_collection_handover",
@@ -232,32 +254,44 @@ describe("DashboardPage admin handover verification characterization", () => {
   });
 
   it("blocks rejection and displays an error when reason is empty or whitespace", async () => {
-    vi.spyOn(window, "prompt").mockReturnValue("   ");
-
     render(<DashboardPage />);
 
-    const rejectButton = await screen.findByRole("button", { name: "Reject" });
+    const tab = await screen.findByTestId("nav-tab-handovers");
+    fireEvent.click(tab);
+
+    const rejectButton = await screen.findByRole("button", { name: /Reject/i });
     expect(rejectButton).toBeTruthy();
 
     fireEvent.click(rejectButton);
+
+    // Confirm without typing reason
+    const confirmRejectBtn = screen.getByRole("button", { name: /नाकारा \(Confirm Reject\)/i });
+    fireEvent.click(confirmRejectBtn);
 
     expect(supabaseRpc).not.toHaveBeenCalledWith(
       "reject_collection_handover",
       expect.anything()
     );
 
-    expect(await screen.findByText("A rejection reason is required.")).toBeTruthy();
+    expect(await screen.findByText(/कृपया नाकारण्याचे स्पष्ट कारण भरा/i)).toBeTruthy();
   });
 
   it("rejects a submitted handover with the provided reason", async () => {
-    vi.spyOn(window, "prompt").mockReturnValue("Cash amount mismatch");
-
     render(<DashboardPage />);
 
-    const rejectButton = await screen.findByRole("button", { name: "Reject" });
+    const tab = await screen.findByTestId("nav-tab-handovers");
+    fireEvent.click(tab);
+
+    const rejectButton = await screen.findByRole("button", { name: /Reject/i });
     expect(rejectButton).toBeTruthy();
 
     fireEvent.click(rejectButton);
+
+    const input = screen.getByPlaceholderText(/उदा. रोख ₹२०० कमी आहे/i);
+    fireEvent.change(input, { target: { value: "Cash amount mismatch" } });
+
+    const confirmRejectBtn = screen.getByRole("button", { name: /नाकारा \(Confirm Reject\)/i });
+    fireEvent.click(confirmRejectBtn);
 
     await waitFor(() => {
       expect(supabaseRpc).toHaveBeenCalledWith("reject_collection_handover", {

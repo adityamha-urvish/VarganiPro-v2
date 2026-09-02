@@ -169,21 +169,49 @@ export function SessionSummaryCard({
           </div>
         )}
 
+        {/* Exhausted Receipt Book Banner */}
+        {session.sessionStatus === "open" &&
+          session.currentNumber > session.endNumber && (
+            <div className="mt-5 rounded-xl border-2 border-amber-500/40 bg-amber-500/10 p-4 space-y-2">
+              <div className="flex items-center gap-2.5">
+                <span className="text-2xl" role="img" aria-label="Book completed">📕</span>
+                <div>
+                  <h4 className="text-sm font-black text-amber-950 dark:text-amber-100">
+                    पावती पुस्तक पूर्ण झाले / Receipt Book Completed
+                  </h4>
+                  <p className="text-xs text-amber-900 dark:text-amber-300 mt-0.5">
+                    पावती क्रमांक #{session.startNumber}–#{session.endNumber} पर्यंत सर्व पावत्या वापरल्या आहेत. (All receipts in this book have been issued.)
+                  </p>
+                </div>
+              </div>
+              <p className="text-xs text-amber-800 dark:text-amber-300">
+                कृपया हे संकलन बंद करा आणि पुढील पावती पुस्तक घेण्यापूर्वी हिशोब (Handover) पूर्ण करा.
+              </p>
+            </div>
+          )}
+
         {session.sessionStatus === "open" && (
           <div className="mt-6 flex justify-end">
             <Button
               type="button"
-              variant="outline"
+              variant={session.currentNumber > session.endNumber ? "default" : "outline"}
               onClick={onCloseSession}
               disabled={
                 closingSession ||
                 pendingCount > 0 ||
                 conflictCount > 0
               }
+              className={
+                session.currentNumber > session.endNumber
+                  ? "bg-amber-600 hover:bg-amber-700 text-white font-bold"
+                  : ""
+              }
             >
               {closingSession
                 ? "Closing Session..."
-                : "Close Collection Session"}
+                : session.currentNumber > session.endNumber
+                  ? "संकलन बंद करा / Close Collection Session →"
+                  : "Close Collection Session"}
             </Button>
           </div>
         )}

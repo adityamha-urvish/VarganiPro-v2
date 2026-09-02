@@ -11,7 +11,7 @@ import {
   saveLocalReceipt,
   type LocalReceipt,
 } from "./offline-db";
-import { syncNextReceipt } from "./receipt-sync";
+import { drainSyncQueue, syncNextReceipt } from "./receipt-sync";
 
 function receipt(
   receiptNumber: number,
@@ -101,4 +101,43 @@ describe("syncNextReceipt", () => {
       lastSyncError: "Network unavailable",
     });
   });
+
+  it("drains all pending receipts sequentially in single flight (drainSyncQueue)", async () => {
+    await saveLocalReceipt(receipt(201, "pending"));
+    await saveLocalReceipt(receipt(202, "pending"));
+    await saveLocalReceipt(receipt(203, "pending"));
+
+    rpc.mockResolvedValue({
+      data: { success: true, receipt_id: "server-rec" },
+      error: null,
+    });
+
+    await drainSyncQueue("book-1");
+
+    expect(rpc).toHaveBeenCalledTimes(3);
+    expect((await getLocalReceipt("client-201"))?.syncStatus).toBe("synced");
+    expect((await getLocalReceipt("client-202"))?.syncStatus).toBe("synced");
+    expect((await getLocalReceipt("client-203"))?.syncStatus).toBe("synced");
+  });
+
+  it("prevents duplicate concurrent drain runs (single-flight execution)", async () => {
+    await saveLocalReceipt(receipt(301, "pending"));
+    await saveLocalReceipt(receipt(302, "pending"));
+
+    rpc.mockResolvedValue({
+      data: { success: true, receipt_id: "server-rec" },
+      error: null,
+    });
+
+    // Fire 2 concurrent drain runs
+    await Promise.all([
+      drainSyncQueue("book-1"),
+      drainSyncQueue("book-1"),
+    ]);
+
+    expect(rpc).toHaveBeenCalledTimes(2); // Exactly 2 calls for 2 receipts, not 4
+    expect((await getLocalReceipt("client-301"))?.syncStatus).toBe("synced");
+    expect((await getLocalReceipt("client-302"))?.syncStatus).toBe("synced");
+  });
 });
+

@@ -130,16 +130,19 @@ export function useAdminHandovers({
   /*
    * Reject a submitted collection handover.
    */
-  async function handleRejectHandover(handoverId: string) {
-    const input = window.prompt(
-      "Enter the reason for rejecting this handover:"
-    );
+  async function handleRejectHandover(
+    handoverId: string,
+    customReason?: string
+  ) {
+    let reason = customReason?.trim();
 
-    if (input === null) {
-      return;
+    if (!reason) {
+      const input = window.prompt(
+        "Enter the reason for rejecting this handover:"
+      );
+      if (input === null) return;
+      reason = input.trim();
     }
-
-    const reason = input.trim();
 
     if (!reason) {
       setAdminHandoverError("A rejection reason is required.");

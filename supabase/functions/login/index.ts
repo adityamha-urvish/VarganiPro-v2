@@ -13,6 +13,31 @@ interface LoginRequest {
   pin: string;
 }
 
+export function extractClientIp(req: Request): string {
+  // 1. Cloudflare connecting IP (trustworthy on Supabase Edge / Cloudflare infra)
+  const cfConnectingIp = req.headers.get("cf-connecting-ip");
+  if (cfConnectingIp && cfConnectingIp.trim()) {
+    return cfConnectingIp.trim();
+  }
+
+  // 2. Standard X-Real-IP
+  const xRealIp = req.headers.get("x-real-ip");
+  if (xRealIp && xRealIp.trim()) {
+    return xRealIp.trim();
+  }
+
+  // 3. X-Forwarded-For (leftmost client IP)
+  const xForwardedFor = req.headers.get("x-forwarded-for");
+  if (xForwardedFor && xForwardedFor.trim()) {
+    const firstIp = xForwardedFor.split(",")[0].trim();
+    if (firstIp) {
+      return firstIp;
+    }
+  }
+
+  return "";
+}
+
 Deno.serve(async (req) => {
   // =====================================================
   // CORS
@@ -38,6 +63,8 @@ Deno.serve(async (req) => {
       },
     );
   }
+
+  const clientIp = extractClientIp(req);
 
   try {
     // ===================================================
@@ -140,7 +167,7 @@ Deno.serve(async (req) => {
       "login_rate_limit",
       {
         p_mobile: mobile,
-        p_ip: "",
+        p_ip: clientIp,
         p_action: "check",
       },
     );
@@ -239,7 +266,7 @@ Deno.serve(async (req) => {
         "login_rate_limit",
         {
           p_mobile: mobile,
-          p_ip: "",
+          p_ip: clientIp,
           p_action: "failure",
         },
       );
@@ -275,7 +302,7 @@ Deno.serve(async (req) => {
         "login_rate_limit",
         {
           p_mobile: mobile,
-          p_ip: "",
+          p_ip: clientIp,
           p_action: "failure",
         },
       );
@@ -304,7 +331,7 @@ Deno.serve(async (req) => {
       "login_rate_limit",
       {
         p_mobile: mobile,
-        p_ip: "",
+        p_ip: clientIp,
         p_action: "success",
       },
     );

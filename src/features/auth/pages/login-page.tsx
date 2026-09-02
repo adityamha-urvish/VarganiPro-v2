@@ -103,11 +103,23 @@ export function LoginPage() {
 
             <Button
               type="submit"
-              className="w-full"
+              className="w-full font-bold cursor-pointer"
             >
-              Login
+              Sign In ⚡
             </Button>
           </form>
+
+          <div className="mt-5 pt-4 border-t text-center">
+            <p className="text-xs text-muted-foreground">
+              New Mandal or Trust?{" "}
+              <a
+                href="/signup"
+                className="text-primary font-bold hover:underline inline-block mt-0.5"
+              >
+                Register Your Mandal (Free) →
+              </a>
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>

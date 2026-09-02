@@ -25,7 +25,8 @@ interface SyncResponse {
 }
 
 export async function syncNextReceipt(
-  receiptBookId: string
+  receiptBookId: string,
+  ownerUserId?: string
 ): Promise<ReceiptSyncResult | null> {
   /*
    * Sync Next must consider BOTH pending receipts and
@@ -35,7 +36,7 @@ export async function syncNextReceipt(
    * missing previous receipt has synchronized, the conflicted
    * receipt becomes eligible for retry.
    */
-  const localReceipts = await getLocalReceipts(receiptBookId);
+  const localReceipts = await getLocalReceipts(receiptBookId, ownerUserId);
 
   const syncCandidates = localReceipts.filter(
     (receipt) =>
@@ -220,3 +221,82 @@ export async function syncNextReceipt(
     response,
   };
 }
+
+/* -------------------------------------------------
+   AUTOMATIC QUEUE DRAIN & ONLINE TRIGGER
+------------------------------------------------- */
+
+const activeDrainPromises = new Map<string, Promise<void>>();
+
+/**
+ * Single-flight automatic queue drain.
+ * Sequentially syncs all pending/conflict receipts for a receipt book
+ * until the queue is exhausted, network is lost, or an error occurs.
+ */
+export async function drainSyncQueue(
+  receiptBookId: string,
+  ownerUserId?: string,
+  onProgress?: () => void
+): Promise<void> {
+  const existing = activeDrainPromises.get(receiptBookId);
+  if (existing) {
+    return existing;
+  }
+
+  const drainPromise = (async () => {
+    try {
+      let keepDraining = true;
+      while (keepDraining) {
+        if (typeof navigator !== "undefined" && navigator.onLine === false) {
+          break;
+        }
+
+        const result = await syncNextReceipt(receiptBookId, ownerUserId);
+        if (!result) {
+          // No more candidates waiting to sync
+          break;
+        }
+
+        onProgress?.();
+
+        // If sync failed due to network or non-retryable reason, stop draining loop
+        if (!result.success && !result.alreadyExists) {
+          keepDraining = false;
+        }
+      }
+    } finally {
+      activeDrainPromises.delete(receiptBookId);
+    }
+  })();
+
+  activeDrainPromises.set(receiptBookId, drainPromise);
+  return drainPromise;
+}
+
+/**
+ * Sets up automatic background sync on window 'online' event.
+ * Returns an unsubscribe cleanup callback.
+ */
+export function setupAutoSync(
+  receiptBookId: string,
+  ownerUserId?: string,
+  onSyncComplete?: () => void
+): () => void {
+  if (typeof window === "undefined") {
+    return () => {};
+  }
+
+  const handleOnline = () => {
+    void drainSyncQueue(receiptBookId, ownerUserId, onSyncComplete).then(() => {
+      onSyncComplete?.();
+    });
+  };
+
+  window.addEventListener("online", handleOnline);
+
+  return () => {
+    window.removeEventListener("online", handleOnline);
+  };
+}
+
+

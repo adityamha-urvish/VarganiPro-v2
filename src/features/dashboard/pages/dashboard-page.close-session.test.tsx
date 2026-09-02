@@ -17,8 +17,18 @@ const {
   supabaseRpc: vi.fn(),
 }));
 
-vi.mock("@/features/collection/services/collection-session.service", () => ({
-  initializeCollectionSession,
+vi.mock("@/features/collection/services/collection-session.service", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/features/collection/services/collection-session.service")>();
+  return {
+    ...actual,
+    initializeCollectionSession,
+  };
+});
+
+vi.mock("@/features/collection/services/collection-progress.service", () => ({
+  fetchEventBuildingSummaries: vi.fn(async () => []),
+  fetchBuildingPropertiesProgress: vi.fn(async () => []),
+  recordFollowUp: vi.fn(async () => {}),
 }));
 
 vi.mock("@/lib/offline/offline-db", () => ({
@@ -28,6 +38,8 @@ vi.mock("@/lib/offline/offline-db", () => ({
 
 vi.mock("@/lib/offline/receipt-sync", () => ({
   syncNextReceipt: vi.fn(),
+  drainSyncQueue: vi.fn(async () => {}),
+  setupAutoSync: vi.fn(() => () => {}),
 }));
 
 vi.mock("@/supabase/client", () => ({

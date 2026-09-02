@@ -95,7 +95,10 @@ vi.mock("@/supabase/client", () => ({
   },
 }));
 
-import { initializeCollectionSession } from "./collection-session.service";
+import {
+  initializeCollectionSession,
+  loadCurrentCollectionSession,
+} from "./collection-session.service";
 
 describe("initializeCollectionSession", () => {
   beforeEach(() => {
@@ -173,5 +176,45 @@ describe("initializeCollectionSession", () => {
       })
     );
     expect(session.sessionId).not.toBe("completed-1");
+  });
+});
+
+describe("loadCurrentCollectionSession", () => {
+  beforeEach(() => {
+    mergeOfflineBookState.mockReset();
+  });
+
+  it("loads the current open session without invoking mergeOfflineBookState", async () => {
+    sessionState.open = [
+      {
+        id: "open-1",
+        organization_id: "org-1",
+        event_id: "event-open",
+        volunteer_id: "volunteer-1",
+        receipt_book_id: "book-open",
+        status: "open",
+        started_at: "2026-08-21T01:00:00.000Z",
+      },
+    ];
+    sessionState.completed = null;
+
+    const session = await loadCurrentCollectionSession();
+
+    expect(session).toMatchObject({
+      sessionId: "open-1",
+      sessionStatus: "open",
+      receiptBookId: "book-open",
+    });
+    expect(mergeOfflineBookState).not.toHaveBeenCalled();
+  });
+
+  it("returns null when no collection session is found", async () => {
+    sessionState.open = null;
+    sessionState.completed = null;
+
+    const session = await loadCurrentCollectionSession();
+
+    expect(session).toBeNull();
+    expect(mergeOfflineBookState).not.toHaveBeenCalled();
   });
 });
