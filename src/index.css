@@ -120,11 +120,92 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
-    }
+  }
   body {
     @apply bg-background text-foreground;
-    }
+  }
   html {
     @apply font-sans;
-    }
+  }
+}
+
+/* -------------------------------------------------------------
+   EDITORIAL BOLD & CONCEPT C FESTIVAL PREMIUM UTILITIES
+-------------------------------------------------------------- */
+
+.font-brand-marathi,
+.font-marathi-bold {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans Devanagari", "Mukta", "Yantramanav", "Rozha One", sans-serif;
+  font-feature-settings: "kern" 1, "liga" 1;
+}
+
+.font-brand-pro {
+  font-family: 'Geist Variable', -apple-system, BlinkMacSystemFont, sans-serif;
+  letter-spacing: -0.04em;
+}
+
+.font-pro-luxe {
+  font-family: 'Geist Variable', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  letter-spacing: 0.22em;
+  font-weight: 800;
+}
+
+/* Base Teal Foundation */
+.bg-fest-teal-foundation {
+  background-color: #06151c;
+}
+
+/* Atmospheric Festival Glow & Motifs */
+.bg-festival-glow {
+  background: 
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(249, 115, 22, 0.15), transparent 70%),
+    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(234, 179, 8, 0.10), transparent 60%),
+    radial-gradient(ellipse 50% 50% at 10% 90%, rgba(16, 185, 129, 0.08), transparent 50%),
+    #0f172a;
+}
+
+.bg-festival-card {
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+/* Tactile CTA Buttons */
+.btn-fest-gold {
+  background: linear-gradient(135deg, #c2410c 0%, #ea580c 50%, #d97706 100%);
+  box-shadow: 0 10px 30px -5px rgba(234, 88, 12, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.3);
+}
+
+.btn-fest-gold:hover:not(:disabled) {
+  background: linear-gradient(135deg, #9a3412 0%, #c2410c 50%, #b45309 100%);
+  box-shadow: 0 12px 35px -5px rgba(234, 88, 12, 0.55), inset 0 1px 1px rgba(255, 255, 255, 0.4);
+}
+
+.frosted-glass-teal {
+  background: rgba(11, 27, 36, 0.88);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* Atmospheric Smoke Layer */
+.smoke-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: 
+    radial-gradient(ellipse at 70% 65%, rgba(255, 245, 230, 0.08) 0%, rgba(255, 245, 230, 0.03) 35%, transparent 65%),
+    radial-gradient(ellipse at 55% 45%, rgba(245, 158, 11, 0.06) 0%, transparent 50%),
+    radial-gradient(circle at 80% 30%, rgba(255, 255, 255, 0.05) 0%, transparent 40%);
+  filter: blur(16px);
+}
+
+/* Subtitle Marathi utility */
+.marathi-sub {
+  font-family: -apple-system, BlinkMacSystemFont, "Noto Sans Devanagari", "Yantramanav", sans-serif;
+  font-size: 0.85em;
+  opacity: 0.82;
+  font-weight: 500;
+  display: block;
 }
