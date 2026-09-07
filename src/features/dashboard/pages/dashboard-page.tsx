@@ -17,6 +17,7 @@ import { ReceiptHistoryPanel } from "../components/receipt-history-panel";
 import { ReceiptPreviewDialog } from "../components/receipt-preview-dialog";
 import { SessionSummaryCard } from "../components/session-summary-card";
 import { StartCollectionCard } from "../components/start-collection-card";
+import { ReadyToCollectScreen } from "../components/ready-to-collect-screen";
 import { VolunteerHandoverCard } from "../components/volunteer-handover-card";
 import { RoleNavigation, type NavigationTab } from "@/app/layouts/RoleNavigation";
 import { VolunteerManagementPanel } from "@/features/admin/volunteers/components/volunteer-management-panel";
@@ -307,23 +308,21 @@ export function DashboardPage() {
 
   if (!session && !isAdmin) {
     return (
-      <div className="space-y-6 p-6">
-        <StartCollectionCard
-          idPrefix="start"
-          events={availableEvents}
-          books={availableBooks}
-          selectedEventId={selectedEventId}
-          selectedBookId={selectedBookId}
-          loading={startSessionLoading}
-          error={startSessionError}
-          onEventChange={(value) => {
-            setSelectedEventId(value);
-            void loadAvailableBooks(value);
-          }}
-          onBookChange={(value) => setSelectedBookId(value)}
-          onStartCollection={() => void handleStartCollectionSession()}
-        />
-      </div>
+      <ReadyToCollectScreen
+        idPrefix="start"
+        events={availableEvents}
+        books={availableBooks}
+        selectedEventId={selectedEventId}
+        selectedBookId={selectedBookId}
+        loading={startSessionLoading}
+        error={startSessionError}
+        onEventChange={(value) => {
+          setSelectedEventId(value);
+          void loadAvailableBooks(value);
+        }}
+        onBookChange={(value) => setSelectedBookId(value)}
+        onStartCollection={() => void handleStartCollectionSession()}
+      />
     );
   }
 

@@ -1,7 +1,6 @@
 import React from 'react';
-import siddhivinayakBg from '@/assets/backgrounds/siddhivinayak_prabhadevi_bg.jpg';
-import deviBg from '@/assets/backgrounds/devi_fest_bg.jpg';
-import neutralBg from '@/assets/backgrounds/neutral_fest_bg.jpg';
+import neighbourhoodMaster from '@/assets/visual-world/neighbourhood-master.jpg';
+import neighbourhoodMobile from '@/assets/visual-world/neighbourhood-mobile.jpg';
 
 export type FestivalType = 'ganpati' | 'navratri' | 'other';
 
@@ -11,55 +10,44 @@ interface FestivalBackgroundProps {
 }
 
 export const FestivalBackground: React.FC<FestivalBackgroundProps> = ({
-  festival = 'other',
   className = '',
 }) => {
-  const bgConfig = {
-    ganpati: {
-      image: siddhivinayakBg,
-      position: 'center 38%',
-      opacity: 'opacity-20',
-      blur: 'blur-[1.5px]',
-      gradient: 'radial-gradient(circle at 72% 48%, rgba(6, 21, 28, 0.40) 0%, rgba(6, 21, 28, 0.94) 75%)',
-    },
-    navratri: {
-      image: deviBg,
-      position: 'center 38%',
-      opacity: 'opacity-20',
-      blur: 'blur-[1.5px]',
-      gradient: 'radial-gradient(circle at 72% 48%, rgba(6, 21, 28, 0.40) 0%, rgba(6, 21, 28, 0.94) 75%)',
-    },
-    other: {
-      image: neutralBg,
-      position: 'center 40%',
-      opacity: 'opacity-20',
-      blur: 'blur-[1.5px]',
-      gradient: 'radial-gradient(circle at 72% 50%, rgba(6, 21, 28, 0.45) 0%, rgba(6, 21, 28, 0.94) 75%)',
-    },
-  }[festival];
-
   return (
     <div
-      className={'absolute inset-0 pointer-events-none overflow-hidden bg-[#06151c] ' + className}
+      className={'absolute inset-0 pointer-events-none overflow-hidden bg-[#071318] ' + className}
       aria-hidden="true"
     >
-      {/* High-Resolution Photographic Sanctum Background Layer */}
+      {/* Desktop Master Visual-World Artwork (1440x900 full bleed) */}
       <div
-        className={'absolute inset-0 bg-cover ' + bgConfig.opacity + ' ' + bgConfig.blur + ' transition-opacity duration-700'}
+        className="hidden md:block absolute inset-0 bg-cover bg-center transition-opacity duration-700"
         style={{
-          backgroundImage: `${bgConfig.gradient}, url("${bgConfig.image}")`,
-          backgroundPosition: bgConfig.position,
+          backgroundImage: `url("${neighbourhoodMaster}")`,
         }}
       />
 
-      {/* Atmospheric Dhoop / Incense Smoke Diffusion Layer */}
-      <div className="smoke-layer" />
-
-      {/* Deep Teal Atmospheric Radial Edge Vignette */}
+      {/* Mobile Master Visual-World Artwork (390x844 responsive portrait) */}
       <div
-        className="absolute inset-0"
+        className="block md:hidden absolute inset-0 bg-cover bg-center transition-opacity duration-700"
         style={{
-          background: 'radial-gradient(ellipse at 50% 50%, transparent 40%, rgba(6, 21, 28, 0.85) 100%)',
+          backgroundImage: `url("${neighbourhoodMobile}")`,
+        }}
+      />
+
+      {/* Desktop Localized Readability Gradients (Preserves central vibrancy, terracotta buildings & street depth) */}
+      <div
+        className="hidden md:block absolute inset-0"
+        style={{
+          background:
+            'radial-gradient(ellipse 65% 85% at 20% 50%, rgba(5, 17, 23, 0.72) 0%, rgba(5, 17, 23, 0.38) 50%, transparent 80%), radial-gradient(circle at 82% 48%, rgba(5, 17, 23, 0.35) 0%, rgba(5, 17, 23, 0.10) 60%, transparent 100%), linear-gradient(to top, rgba(5, 17, 23, 0.65) 0%, transparent 22%), linear-gradient(to bottom, rgba(5, 17, 23, 0.50) 0%, transparent 15%)',
+        }}
+      />
+
+      {/* Mobile Localized Readability Gradients (Ensures header and card legibility while keeping streetscape alive) */}
+      <div
+        className="block md:hidden absolute inset-0"
+        style={{
+          background:
+            'linear-gradient(to bottom, rgba(5, 17, 23, 0.82) 0%, rgba(5, 17, 23, 0.35) 45%, rgba(5, 17, 23, 0.75) 100%)',
         }}
       />
     </div>

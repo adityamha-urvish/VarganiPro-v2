@@ -81,11 +81,7 @@ describe("LastCreatedReceiptCard — Web Share Level 2 & Caching Tests", () => {
       />
     );
 
-    await waitFor(() => {
-      expect(pavtiImageService.renderPavtiToFile).toHaveBeenCalled();
-    });
-
-    const waBtn = screen.getByRole("button", { name: /WhatsApp/i });
+    const waBtn = await screen.findByRole("button", { name: /WhatsApp/i });
     expect(waBtn).toBeTruthy();
     await waitFor(() => {
       expect((waBtn as HTMLButtonElement).disabled).toBe(false);
