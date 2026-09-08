@@ -274,6 +274,18 @@ export function useVolunteerHandover({
       return;
     }
 
+    const expectedPhysical = Number(handover.expectedPhysicalAmount ?? 0);
+    const countedPhysical = cash + cheque + expense;
+    const difference = countedPhysical - expectedPhysical;
+    const hasDiscrepancy = Math.abs(difference) >= 0.005;
+
+    if (hasDiscrepancy && (!discrepancyReason || discrepancyReason.trim().length < 3)) {
+      setHandoverError(
+        "तफावतीचे कारण आवश्यक आहे (Please enter a valid discrepancy explanation of at least 3 characters)."
+      );
+      return;
+    }
+
     setHandoverError(null);
     setHandoverMessage(null);
     setSubmittingHandover(true);
@@ -326,12 +338,16 @@ export function useVolunteerHandover({
               actualChequeAmount: cheque,
               authorizedExpenseAmount: expense,
               authorizedExpenseNote: authorizedExpenseNote.trim() || null,
+              discrepancyReason: discrepancyReason.trim() || null,
+              notes: handoverNotes.trim() || null,
             }
-      : current
+          : current
       );
 
       setIsReviewStage(true);
-      setHandoverMessage("हिशोब जमा झाला! सेक्रेटरी पडताळणीची प्रतीक्षा आहे (Handover submitted successfully).");
+      setHandoverMessage(
+        "हिशोब जमा झाला! सेक्रेटरी पडताळणीची प्रतीक्षा आहे (Handover submitted successfully)."
+      );
     } catch (err) {
       console.error("SUBMIT HANDOVER ERROR:", err);
       setHandoverError(

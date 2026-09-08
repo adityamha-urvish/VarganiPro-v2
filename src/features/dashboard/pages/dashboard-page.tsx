@@ -472,6 +472,7 @@ export function DashboardPage() {
           handoverNotes={handoverNotes}
           handoverError={handoverError}
           handoverMessage={handoverMessage}
+          unsyncedCount={pendingReceipts.length}
           onCreateHandover={() => void handleCreateHandover()}
           onSubmitHandover={() => void handleSubmitHandover()}
           onActualCashAmountChange={setActualCashAmount}

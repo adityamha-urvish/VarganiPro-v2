@@ -208,7 +208,7 @@ describe("DashboardPage admin handover verification characterization", () => {
     expect(await screen.findByText(/Handover Verification/i)).toBeTruthy();
     expect(await screen.findByText(/Volunteer Ramesh/)).toBeTruthy();
     expect(collectionHandoversQuery).toHaveBeenCalledWith("organization_id", "org-1");
-    expect(screen.getByText(/Submitted/i)).toBeTruthy();
+    expect(screen.getAllByText(/Submitted/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/All envelopes counted and matched./)).toBeTruthy();
   });
 
@@ -244,7 +244,7 @@ describe("DashboardPage admin handover verification characterization", () => {
     fireEvent.click(rejectButton);
 
     // Cancel modal
-    const cancelBtn = screen.getByRole("button", { name: /रद्द करा \(Cancel\)/i });
+    const cancelBtn = screen.getByRole("button", { name: /Cancel/i });
     fireEvent.click(cancelBtn);
 
     expect(supabaseRpc).not.toHaveBeenCalledWith(
@@ -265,7 +265,7 @@ describe("DashboardPage admin handover verification characterization", () => {
     fireEvent.click(rejectButton);
 
     // Confirm without typing reason
-    const confirmRejectBtn = screen.getByRole("button", { name: /नाकारा \(Confirm Reject\)/i });
+    const confirmRejectBtn = screen.getByRole("button", { name: /Confirm Reject/i });
     fireEvent.click(confirmRejectBtn);
 
     expect(supabaseRpc).not.toHaveBeenCalledWith(
@@ -273,7 +273,7 @@ describe("DashboardPage admin handover verification characterization", () => {
       expect.anything()
     );
 
-    expect(await screen.findByText(/कृपया नाकारण्याचे स्पष्ट कारण भरा/i)).toBeTruthy();
+    expect(await screen.findByText(/Please provide a rejection reason/i)).toBeTruthy();
   });
 
   it("rejects a submitted handover with the provided reason", async () => {
@@ -287,10 +287,10 @@ describe("DashboardPage admin handover verification characterization", () => {
 
     fireEvent.click(rejectButton);
 
-    const input = screen.getByPlaceholderText(/उदा. रोख ₹२०० कमी आहे/i);
+    const input = screen.getByPlaceholderText(/Cash is short/i);
     fireEvent.change(input, { target: { value: "Cash amount mismatch" } });
 
-    const confirmRejectBtn = screen.getByRole("button", { name: /नाकारा \(Confirm Reject\)/i });
+    const confirmRejectBtn = screen.getByRole("button", { name: /Confirm Reject/i });
     fireEvent.click(confirmRejectBtn);
 
     await waitFor(() => {

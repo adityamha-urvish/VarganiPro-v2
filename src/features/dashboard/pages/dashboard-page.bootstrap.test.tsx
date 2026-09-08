@@ -334,7 +334,7 @@ describe("DashboardPage Bootstrap & Rehydration Characterization", () => {
 
     // Verifies Volunteer Handover card is rendered for completed session
     expect(
-      screen.getByRole("button", { name: /Prepare Handover/i })
+      screen.getByRole("button", { name: /Start Handover/i })
     ).toBeTruthy();
 
     // Verifies Start New Collection card is rendered

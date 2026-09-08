@@ -195,13 +195,13 @@ describe("DashboardPage rejected handover resubmission characterization", () => 
     render(<DashboardPage />);
 
     // 1 & 4. Verify completed session is loaded and rejected handover status is displayed
-    expect(await screen.findByText(/जमा वर्गणी हिशोब/)).toBeTruthy();
-    expect(screen.getByText(/नाकारले/)).toBeTruthy();
+    expect(await screen.findByText(/Session Handover/i)).toBeTruthy();
+    expect(screen.getAllByText(/Rejected/i).length).toBeGreaterThan(0);
 
     // 4. Verify restored actual amounts and notes in form inputs
-    const cashInput = screen.getByLabelText(/मोजलेली रोख रक्कम \(Cash Counted\)/i) as HTMLInputElement;
-    const chequeInput = screen.getByLabelText(/चेक रक्कम \(Cheques Counted\)/i) as HTMLInputElement;
-    const notesInput = screen.getByLabelText(/टीप \(Optional Notes\)/i) as HTMLInputElement;
+    const cashInput = screen.getByLabelText(/Cash Counted \(मोजलेली रोख\)/i) as HTMLInputElement;
+    const chequeInput = screen.getByLabelText(/Cheques Counted \(चेक रक्कम\)/i) as HTMLInputElement;
+    const notesInput = screen.getByLabelText(/Handover Notes \(टीप \/ शेरा\)/i) as HTMLInputElement;
 
     expect(cashInput.value).toBe("900");
     expect(chequeInput.value).toBe("");
@@ -217,13 +217,13 @@ describe("DashboardPage rejected handover resubmission characterization", () => 
 
     // Advance to review stage
     const reviewBtn = screen.getByRole("button", {
-      name: /हिशोब तपासा \(Review Reconciliation\)/i,
+      name: /Review Reconciliation \(हिशोब तपासा\)/i,
     });
     fireEvent.click(reviewBtn);
 
     // 5. Verify submit action is exposed in review stage
     const submitButton = screen.getByRole("button", {
-      name: /हिशोब जमा करा \(Submit Handover\)/i,
+      name: /Submit Handover \(हिशोब जमा करा\)/i,
     });
     expect(submitButton).toHaveProperty("disabled", false);
 
@@ -252,7 +252,7 @@ describe("DashboardPage rejected handover resubmission characterization", () => 
 
     // 10. Verify the resulting UI indicates successful submission
     expect(
-      await screen.findByText(/हिशोब सेक्रेटरींकडे सादर झाला आहे!/i)
+      await screen.findByText(/Handover Submitted to Secretary!/i)
     ).toBeTruthy();
   });
 });
