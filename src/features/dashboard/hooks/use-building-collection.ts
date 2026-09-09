@@ -13,6 +13,7 @@ import { createLocalReceipt } from "@/lib/offline/receipt-store";
 import { drainSyncQueue } from "@/lib/offline/receipt-sync";
 import type { CollectionSessionContext } from "@/features/collection/services/collection-session.service";
 import type { PaymentMode } from "../components/receipt-creation-form";
+import { createResidentialFlat } from "@/features/admin/master-data/services/master-data.service";
 
 export type ActiveCollectionSession = CollectionSessionContext;
 
@@ -236,6 +237,96 @@ export function useBuildingCollection({
     [session, selectedBuilding, selectedProperty, properties, getNextProperty]
   );
 
+  const addPropertyDirect = useCallback(
+    async (input: {
+      unitNumber: string;
+      floorNumber?: number | null;
+      ownerName?: string;
+      contactMobile?: string;
+    }): Promise<CachedPropertyProgress | null> => {
+      if (!session || !selectedBuilding) return null;
+
+      try {
+        const res = await createResidentialFlat({
+          organizationId: session.organizationId,
+          buildingId: selectedBuilding.buildingId,
+          unitNumber: input.unitNumber.trim(),
+          floorNumber: input.floorNumber ?? undefined,
+          ownerName: input.ownerName?.trim() || undefined,
+          contactMobile: input.contactMobile?.trim() || undefined,
+        });
+
+        const newProperty: CachedPropertyProgress = {
+          propertyId: res.propertyId,
+          buildingId: selectedBuilding.buildingId,
+          eventId: session.eventId,
+          organizationId: session.organizationId,
+          propertyType: "flat",
+          unitNumber: input.unitNumber.trim(),
+          flatNumber: input.unitNumber.trim(),
+          floorNumber: input.floorNumber ?? null,
+          shopName: null,
+          ownerName: input.ownerName?.trim() || null,
+          contactMobile: input.contactMobile?.trim() || null,
+          status: "not_visited",
+          receiptCount: 0,
+          totalCollectedAmount: 0,
+          latestReceiptNumber: null,
+          lastReceiptAt: null,
+          pendingReason: null,
+          followUpTime: null,
+          followUpNotes: null,
+          followUpAt: null,
+          cachedAt: new Date().toISOString(),
+        };
+
+        setProperties((prev) => {
+          if (
+            prev.some(
+              (p) =>
+                p.propertyId === newProperty.propertyId ||
+                p.unitNumber.toLowerCase() === newProperty.unitNumber.toLowerCase()
+            )
+          ) {
+            return prev;
+          }
+          return [...prev, newProperty];
+        });
+
+        return newProperty;
+      } catch (err) {
+        console.error("Error adding progressive flat in session:", err);
+        const localId = `local_prop_${Date.now()}`;
+        const localProp: CachedPropertyProgress = {
+          propertyId: localId,
+          buildingId: selectedBuilding.buildingId,
+          eventId: session.eventId,
+          organizationId: session.organizationId,
+          propertyType: "flat",
+          unitNumber: input.unitNumber.trim(),
+          flatNumber: input.unitNumber.trim(),
+          floorNumber: input.floorNumber ?? null,
+          shopName: null,
+          ownerName: input.ownerName?.trim() || null,
+          contactMobile: input.contactMobile?.trim() || null,
+          status: "not_visited",
+          receiptCount: 0,
+          totalCollectedAmount: 0,
+          latestReceiptNumber: null,
+          lastReceiptAt: null,
+          pendingReason: null,
+          followUpTime: null,
+          followUpNotes: null,
+          followUpAt: null,
+          cachedAt: new Date().toISOString(),
+        };
+        setProperties((prev) => [...prev, localProp]);
+        return localProp;
+      }
+    },
+    [session, selectedBuilding]
+  );
+
   useEffect(() => {
     if (session?.eventId) {
       void loadBuildings();
@@ -247,6 +338,7 @@ export function useBuildingCollection({
     selectedBuilding,
     setSelectedBuilding,
     properties,
+    setProperties,
     selectedProperty,
     isFastReceiptOpen,
     setIsFastReceiptOpen,
@@ -263,5 +355,6 @@ export function useBuildingCollection({
     getNextProperty,
     submitFastReceipt,
     submitFollowUp,
+    addPropertyDirect,
   };
 }

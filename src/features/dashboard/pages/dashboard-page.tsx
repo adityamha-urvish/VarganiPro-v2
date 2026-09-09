@@ -141,6 +141,7 @@ export function DashboardPage() {
     getNextProperty,
     submitFastReceipt,
     submitFollowUp,
+    addPropertyDirect,
   } = useBuildingCollection({
     session,
     onReceiptCreated: (receipt) => {
@@ -442,6 +443,7 @@ export function DashboardPage() {
               onBack={() => setSelectedBuilding(null)}
               onSelectProperty={openPropertyReceipt}
               onStartNextFlat={startNextFlat}
+              onAddProperty={addPropertyDirect}
             />
           )}
 
@@ -731,7 +733,59 @@ export function DashboardPage() {
       -------------------------------------------------------------- */}
       {activeTab === "masterData" && organizationId && (
         <div className="animate-in fade-in">
-          <BuildingsManagementPanel organizationId={organizationId} />
+          <BuildingsManagementPanel
+            organizationId={organizationId}
+            onStartCollection={(b, p) => {
+              setActiveTab("collection");
+              void selectBuilding({
+                buildingId: b.id,
+                eventId: session?.eventId || "",
+                organizationId,
+                buildingName: b.name,
+                code: b.code || null,
+                wing: b.wing || null,
+                areaName: b.areaName || null,
+                totalUnits: 0,
+                collectedCount: 0,
+                pendingCount: 0,
+                refusedCount: 0,
+                notVisitedCount: 0,
+                remainingCount: 0,
+                totalAmountCollected: 0,
+                lastActivityAt: null,
+                cachedAt: new Date().toISOString(),
+              });
+              if (p) {
+                openPropertyReceipt({
+                  propertyId: p.id,
+                  buildingId: b.id,
+                  eventId: session?.eventId || "",
+                  organizationId,
+                  propertyType: p.propertyType || "flat",
+                  unitNumber: p.unitNumber || p.flatNumber || "",
+                  flatNumber: p.flatNumber || p.unitNumber || "",
+                  floorNumber: p.floorNumber ?? null,
+                  shopName: p.shopName || null,
+                  ownerName: p.ownerName ?? null,
+                  contactMobile: p.contactMobile ?? null,
+                  status: "not_visited",
+                  receiptCount: 0,
+                  totalCollectedAmount: 0,
+                  latestReceiptNumber: null,
+                  lastReceiptAt: null,
+                  pendingReason: null,
+                  followUpTime: null,
+                  followUpNotes: null,
+                  followUpAt: null,
+                  cachedAt: new Date().toISOString(),
+                });
+              }
+            }}
+            onStartGeneralReceipt={() => {
+              setActiveTab("collection");
+              setSelectedBuilding(null);
+            }}
+          />
         </div>
       )}
 

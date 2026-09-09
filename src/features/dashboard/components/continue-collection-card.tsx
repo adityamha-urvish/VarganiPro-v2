@@ -39,7 +39,9 @@ export function ContinueCollectionCard({
     buildings.find((b) => b.remainingCount > 0) ||
     buildings[0];
 
-  const allCompleted = buildings.every((b) => b.remainingCount === 0);
+  const allCompleted =
+    buildings.length > 0 &&
+    buildings.every((b) => b.totalUnits > 0 && b.remainingCount === 0);
 
   return (
     <div className="space-y-4">
@@ -156,7 +158,7 @@ export function ContinueCollectionCard({
 
         <div className="divide-y mt-1">
           {buildings.map((b) => {
-            const isDone = b.remainingCount === 0;
+            const isDone = b.totalUnits > 0 && b.remainingCount === 0;
             return (
               <div
                 key={b.buildingId}

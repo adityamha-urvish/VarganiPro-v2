@@ -1,11 +1,5 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -19,32 +13,42 @@ import {
   type PropertyRecord,
 } from "../services/master-data.service";
 
-interface BuildingsManagementPanelProps {
+export interface BuildingsManagementPanelProps {
   organizationId: string;
   initialSubTab?: "buildings" | "shops";
+  onStartCollection?: (building: BuildingRecord, flat?: PropertyRecord) => void;
+  onStartGeneralReceipt?: () => void;
 }
 
 export function BuildingsManagementPanel({
   organizationId,
   initialSubTab = "buildings",
+  onStartCollection,
+  onStartGeneralReceipt,
 }: BuildingsManagementPanelProps) {
   const [subTab, setSubTab] = useState<"buildings" | "shops">(initialSubTab);
 
-  // Buildings state
+  // Buildings & Flats state
   const [buildings, setBuildings] = useState<BuildingRecord[]>([]);
   const [selectedBuilding, setSelectedBuilding] = useState<BuildingRecord | null>(null);
   const [flats, setFlats] = useState<PropertyRecord[]>([]);
   const [loadingBuildings, setLoadingBuildings] = useState(true);
   const [loadingFlats, setLoadingFlats] = useState(false);
 
-  // Modals
+  // Completed buildings local tracking
+  const [completedBuildingIds, setCompletedBuildingIds] = useState<Set<string>>(new Set());
+
+  // Filter state
+  const [filterMode, setFilterMode] = useState<"all" | "in_progress" | "pending" | "not_started" | "completed">("all");
+
+  // Minimal Building Creation Modal
   const [showAddBuilding, setShowAddBuilding] = useState(false);
   const [bldName, setBldName] = useState("");
-  const [bldCode, setBldCode] = useState("");
-  const [bldArea, setBldArea] = useState("");
   const [bldWing, setBldWing] = useState("");
+  const [bldArea, setBldArea] = useState("");
   const [submittingBuilding, setSubmittingBuilding] = useState(false);
 
+  // Progressive Add Flat Modal
   const [showAddFlat, setShowAddFlat] = useState(false);
   const [flatUnit, setFlatUnit] = useState("");
   const [flatFloor, setFlatFloor] = useState("");
@@ -69,7 +73,7 @@ export function BuildingsManagementPanel({
       const data = await fetchOrganizationBuildings(organizationId);
       setBuildings(data);
       if (data.length > 0 && !selectedBuilding) {
-        setSelectedBuilding(data[0]);
+        // preserve selected
       }
     } catch (err) {
       console.error("Error loading buildings:", err);
@@ -120,6 +124,7 @@ export function BuildingsManagementPanel({
     }
   }, [subTab, organizationId]);
 
+  // Handle Minimal Building Creation (No Bulk Generation)
   const handleCreateBuilding = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bldName.trim()) return;
@@ -129,16 +134,14 @@ export function BuildingsManagementPanel({
       const res = await createBuilding({
         organizationId,
         name: bldName.trim(),
-        code: bldCode.trim() || undefined,
         areaName: bldArea.trim() || undefined,
         wing: bldWing.trim() || undefined,
       });
 
       setShowAddBuilding(false);
       setBldName("");
-      setBldCode("");
-      setBldArea("");
       setBldWing("");
+      setBldArea("");
 
       const updated = await fetchOrganizationBuildings(organizationId);
       setBuildings(updated);
@@ -153,13 +156,13 @@ export function BuildingsManagementPanel({
     }
   };
 
-  const handleCreateFlat = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Handle Progressive Add Flat (and Add & Continue)
+  const handleCreateFlat = async (shouldContinueToCollect: boolean) => {
     if (!selectedBuilding || !flatUnit.trim()) return;
 
     setSubmittingFlat(true);
     try {
-      await createResidentialFlat({
+      const res = await createResidentialFlat({
         organizationId,
         buildingId: selectedBuilding.id,
         unitNumber: flatUnit.trim(),
@@ -168,6 +171,20 @@ export function BuildingsManagementPanel({
         contactMobile: flatMobile.trim() || undefined,
       });
 
+      const newFlat: PropertyRecord = {
+        id: res.propertyId,
+        organizationId,
+        buildingId: selectedBuilding.id,
+        propertyType: "residential",
+        unitNumber: flatUnit.trim(),
+        flatNumber: flatUnit.trim(),
+        floorNumber: flatFloor ? parseInt(flatFloor, 10) : undefined,
+        ownerName: flatOwner.trim() || undefined,
+        contactMobile: flatMobile.trim() || undefined,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+      };
+
       setShowAddFlat(false);
       setFlatUnit("");
       setFlatFloor("");
@@ -175,6 +192,10 @@ export function BuildingsManagementPanel({
       setFlatMobile("");
 
       await loadFlats(selectedBuilding);
+
+      if (shouldContinueToCollect && onStartCollection) {
+        onStartCollection(selectedBuilding, newFlat);
+      }
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : "Failed to add flat");
     } finally {
@@ -182,556 +203,765 @@ export function BuildingsManagementPanel({
     }
   };
 
-  const handleCreateShop = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!shopName.trim()) return;
-
-    setSubmittingShop(true);
-    try {
-      await createStandaloneShop({
-        organizationId,
-        shopName: shopName.trim(),
-        ownerName: shopOwner.trim() || undefined,
-        contactMobile: shopMobile.trim() || undefined,
-        locationNote: shopLocationNote.trim() || undefined,
-      });
-
-      setShowAddShop(false);
-      setShopName("");
-      setShopOwner("");
-      setShopMobile("");
-      setShopLocationNote("");
-
-      await loadShops();
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Failed to add shop");
-    } finally {
-      setSubmittingShop(false);
-    }
+  // Toggle explicit building completion
+  const handleToggleComplete = (buildingId: string) => {
+    setCompletedBuildingIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(buildingId)) {
+        next.delete(buildingId);
+      } else {
+        next.add(buildingId);
+      }
+      return next;
+    });
   };
 
+  // Floor grouping helper
+  const floorGroups = flats.reduce<Record<string, PropertyRecord[]>>((acc, flat) => {
+    const floorKey = flat.floorNumber !== null && flat.floorNumber !== undefined
+      ? `${flat.floorNumber === 0 ? "Ground" : `${flat.floorNumber}${getOrdinal(flat.floorNumber)}`} Floor`
+      : "Floor Not Specified";
+    if (!acc[floorKey]) acc[floorKey] = [];
+    acc[floorKey].push(flat);
+    return acc;
+  }, {});
+
+  function getOrdinal(n: number) {
+    const s = ["th", "st", "nd", "rd"];
+    const v = n % 100;
+    return s[(v - 20) % 10] || s[v] || s[0];
+  }
+
+  // Filtered buildings list
+  const filteredBuildings = buildings.filter((b) => {
+    const isComplete = completedBuildingIds.has(b.id);
+    if (filterMode === "completed") return isComplete;
+    if (filterMode === "not_started") return !isComplete;
+    return true;
+  });
+
   return (
-    <div className="space-y-4">
-      {/* Tab Switcher: Residential Buildings vs Standalone Shops */}
-      <div className="flex items-center justify-between border-b pb-3">
+    <div className="space-y-4 w-full box-border">
+      
+      {/* -------------------------------------------------------------
+          1. TOP NAVIGATION & GENERAL AD HOC RECEIPT ACTION
+      -------------------------------------------------------------- */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-3">
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => setSubTab("buildings")}
-            className={`px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+            onClick={() => {
+              setSubTab("buildings");
+              setSelectedBuilding(null);
+            }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               subTab === "buildings"
-                ? "bg-primary text-white shadow-sm"
-                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                ? "bg-slate-900 text-white shadow-xs"
+                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
             }`}
           >
-            🏢 Residential Buildings ({buildings.length})
+            🏢 Residential Buildings (इमारती)
           </button>
-
           <button
             type="button"
-            onClick={() => setSubTab("shops")}
-            className={`px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+            onClick={() => {
+              setSubTab("shops");
+              setSelectedBuilding(null);
+            }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               subTab === "shops"
-                ? "bg-primary text-white shadow-sm"
-                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                ? "bg-slate-900 text-white shadow-xs"
+                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
             }`}
           >
-            🏪 Standalone Commercial Shops ({shops.length})
+            🏪 Commercial Shops (दुकाने)
           </button>
         </div>
 
-        {subTab === "buildings" ? (
-          <Button
-            type="button"
-            size="sm"
-            onClick={() => setShowAddBuilding(true)}
-            className="font-bold text-xs gap-1 cursor-pointer"
-          >
-            + Add Building
-          </Button>
-        ) : (
-          <Button
-            type="button"
-            size="sm"
-            onClick={() => setShowAddShop(true)}
-            className="font-bold text-xs gap-1 cursor-pointer"
-          >
-            + Add Shop
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {onStartGeneralReceipt && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onStartGeneralReceipt}
+              className="text-xs font-bold border-amber-300 text-amber-900 hover:bg-amber-50 h-8"
+            >
+              ⚡ + General Receipt (मंडप पावती)
+            </Button>
+          )}
+
+          {subTab === "buildings" && !selectedBuilding && (
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => setShowAddBuilding(true)}
+              className="bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs h-8 cursor-pointer"
+            >
+              ➕ Add Building (इमारत जोडा)
+            </Button>
+          )}
+        </div>
       </div>
 
-      {/* 1. BUILDINGS & RESIDENTIAL FLATS VIEW */}
+      {/* -------------------------------------------------------------
+          2. RESIDENTIAL BUILDINGS VIEW
+      -------------------------------------------------------------- */}
       {subTab === "buildings" && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Left Column: Buildings Roster */}
-          <div className="space-y-2">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-1">
-              Buildings Directory
-            </h3>
-
-            {loadingBuildings ? (
-              <div className="p-4 text-center text-xs text-muted-foreground bg-slate-50 rounded-xl">
-                Loading buildings...
-              </div>
-            ) : buildings.length === 0 ? (
-              <div className="p-6 text-center bg-slate-50 border rounded-xl space-y-2">
-                <p className="text-2xl">🏢</p>
-                <p className="text-xs font-bold text-slate-700">No buildings yet</p>
-                <Button
+        <>
+          {/* Detail View for Selected Building */}
+          {selectedBuilding ? (
+            <div className="space-y-4 animate-in fade-in" data-testid="building-detail-view">
+              
+              {/* Top Bar with Back Button and Actions */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <button
                   type="button"
-                  size="sm"
-                  onClick={() => setShowAddBuilding(true)}
-                  className="text-xs font-bold"
+                  onClick={() => setSelectedBuilding(null)}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-slate-900 cursor-pointer"
                 >
-                  + Add First Building
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                {buildings.map((b) => {
-                  const isSelected = selectedBuilding?.id === b.id;
-                  return (
-                    <button
-                      key={b.id}
-                      type="button"
-                      onClick={() => loadFlats(b)}
-                      className={`w-full text-left p-3 rounded-xl border transition-all cursor-pointer ${
-                        isSelected
-                          ? "bg-primary/10 border-primary text-primary font-bold shadow-xs"
-                          : "bg-white border-slate-200 hover:bg-slate-50 text-slate-800"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">{b.name}</span>
-                        {b.wing && (
-                          <span className="text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.2 rounded font-semibold">
-                            {b.wing}
-                          </span>
-                        )}
-                      </div>
-                      {b.areaName && (
-                        <p className="text-[11px] text-muted-foreground font-normal mt-0.5">
-                          📍 {b.areaName}
-                        </p>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+                  ← Back to All Buildings (सर्व इमारती)
+                </button>
 
-          {/* Right 2 Columns: Flats inside Selected Building */}
-          <div className="md:col-span-2 space-y-2">
-            {selectedBuilding ? (
-              <Card className="shadow-sm">
-                <CardHeader className="py-3 px-4 border-b bg-slate-50/50 flex flex-row items-center justify-between">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleToggleComplete(selectedBuilding.id)}
+                    className={`text-xs font-bold h-8 ${
+                      completedBuildingIds.has(selectedBuilding.id)
+                        ? "border-emerald-500 text-emerald-700 bg-emerald-50"
+                        : "border-slate-300 text-slate-700"
+                    }`}
+                  >
+                    {completedBuildingIds.has(selectedBuilding.id)
+                      ? "✓ Building Complete (पूर्ण)"
+                      : "Mark Building Complete (पूर्ण करा)"}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowAddFlat(true)}
+                    className="border-slate-300 text-slate-800 font-bold text-xs h-8 cursor-pointer"
+                  >
+                    ➕ Add Flat (फ्लॅट जोडा)
+                  </Button>
+
+                  {onStartCollection && flats.length > 0 && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => onStartCollection(selectedBuilding, flats[0])}
+                      className="bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs h-8 cursor-pointer"
+                    >
+                      ⚡ Start Collection →
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {/* Building Header Hero Card */}
+              <div className="rounded-2xl bg-gradient-to-br from-[#081E26] via-[#0B2530] to-[#0F2D38] border border-teal-900/40 text-white p-4 sm:p-5 shadow-sm space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div>
-                    <CardTitle className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                      <span>🏢</span> {selectedBuilding.name} — Flats ({flats.length})
-                    </CardTitle>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base sm:text-lg font-black text-white">
+                        🏢 {selectedBuilding.name} {selectedBuilding.wing ? `(Wing ${selectedBuilding.wing})` : ""}
+                      </h3>
+                      {completedBuildingIds.has(selectedBuilding.id) ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                          COMPLETED
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                          DISCOVERY IN PROGRESS
+                        </span>
+                      )}
+                    </div>
                     {selectedBuilding.areaName && (
-                      <p className="text-[11px] text-muted-foreground">
-                        Locality: {selectedBuilding.areaName}
-                      </p>
+                      <p className="text-xs text-slate-300 mt-0.5">{selectedBuilding.areaName}</p>
                     )}
                   </div>
 
+                  {/* Honest Discovery Metrics Badge */}
+                  <div className="text-right">
+                    <div className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+                      Flats Recorded
+                    </div>
+                    <div className="text-xl font-black text-amber-300 font-mono">
+                      {flats.length} {flats.length === 1 ? "Unit" : "Units"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Floor by Floor Grouped Grid */}
+              {loadingFlats ? (
+                <div className="p-8 text-center text-xs text-slate-500 animate-pulse">
+                  Loading flats for {selectedBuilding.name}...
+                </div>
+              ) : flats.length === 0 ? (
+                <div className="rounded-2xl border bg-card p-8 text-center space-y-3 shadow-xs">
+                  <span className="text-3xl">🚪</span>
+                  <div>
+                    <h4 className="font-bold text-slate-900 text-sm">No flats recorded yet</h4>
+                    <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+                      Add discovered flats as volunteers visit door-to-door.
+                    </p>
+                  </div>
                   <Button
                     type="button"
                     size="sm"
                     onClick={() => setShowAddFlat(true)}
-                    className="font-bold text-xs gap-1 cursor-pointer"
+                    className="bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold h-8"
                   >
-                    + Add Flat
+                    ➕ Add First Flat
                   </Button>
-                </CardHeader>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {Object.entries(floorGroups).map(([floorLabel, floorFlats]) => (
+                    <div key={floorLabel} className="rounded-xl border bg-card p-3.5 sm:p-4 shadow-xs space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                          {floorLabel} ({floorFlats.length} {floorFlats.length === 1 ? "flat" : "flats"})
+                        </h4>
+                      </div>
 
-                <CardContent className="p-4">
-                  {loadingFlats ? (
-                    <div className="p-6 text-center text-xs text-muted-foreground">
-                      Loading flats...
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                        {floorFlats.map((flat) => (
+                          <div
+                            key={flat.id}
+                            onClick={() => onStartCollection && onStartCollection(selectedBuilding, flat)}
+                            className="p-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100/80 transition-all cursor-pointer flex flex-col justify-between min-h-[64px]"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-extrabold text-slate-900">
+                                Flat {flat.unitNumber}
+                              </span>
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                                Recorded
+                              </span>
+                            </div>
+
+                            {flat.ownerName ? (
+                              <div className="text-[11px] text-slate-600 truncate mt-1">
+                                👤 {flat.ownerName}
+                              </div>
+                            ) : (
+                              <div className="text-[10px] text-slate-400 mt-1">Resident not recorded</div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  ) : flats.length === 0 ? (
-                    <div className="p-6 text-center space-y-2">
-                      <p className="text-2xl">🏠</p>
-                      <p className="text-xs font-bold text-slate-700">No flats added in this building</p>
-                      <p className="text-[11px] text-muted-foreground">
-                        Add individual flats (e.g. 101, 102, 103) for volunteers to collect.
-                      </p>
-                      <Button
-                        type="button"
-                        size="sm"
-                        onClick={() => setShowAddFlat(true)}
-                        className="mt-1 font-bold text-xs"
+                  ))}
+                </div>
+              )}
+
+            </div>
+          ) : (
+            /* Building List Overview */
+            <div className="space-y-4 animate-in fade-in" data-testid="building-list-view">
+              
+              {/* Filter Chips */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                <button
+                  type="button"
+                  onClick={() => setFilterMode("all")}
+                  className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                    filterMode === "all"
+                      ? "bg-slate-900 text-white"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  All Buildings ({buildings.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilterMode("completed")}
+                  className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                    filterMode === "completed"
+                      ? "bg-emerald-700 text-white"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  Completed ({completedBuildingIds.size})
+                </button>
+              </div>
+
+              {/* Building Cards Grid */}
+              {loadingBuildings ? (
+                <div className="p-8 text-center text-xs text-slate-500 animate-pulse">
+                  Loading residential buildings...
+                </div>
+              ) : filteredBuildings.length === 0 ? (
+                <div className="rounded-2xl border bg-card p-8 text-center space-y-3 shadow-xs">
+                  <span className="text-3xl">🏢</span>
+                  <div>
+                    <h4 className="font-bold text-slate-900 text-sm">No buildings found</h4>
+                    <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+                      Add your mandal's residential buildings to begin progressive door-to-door collection.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => setShowAddBuilding(true)}
+                    className="bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold h-8"
+                  >
+                    ➕ Add First Building
+                  </Button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                  {filteredBuildings.map((bld) => {
+                    const isCompleted = completedBuildingIds.has(bld.id);
+                    return (
+                      <div
+                        key={bld.id}
+                        className="rounded-2xl border bg-card p-4 shadow-xs hover:border-slate-300 transition-all flex flex-col justify-between gap-3"
                       >
-                        + Add First Flat
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                      {flats.map((f) => (
-                        <div
-                          key={f.id}
-                          className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl hover:border-primary/50 transition-colors"
-                        >
-                          <span className="font-mono font-black text-sm text-slate-900 block">
-                            Flat {f.unitNumber}
-                          </span>
-                          {f.ownerName && (
-                            <span className="text-[11px] text-muted-foreground truncate block">
-                              👤 {f.ownerName}
+                        <div className="space-y-1.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <h4 className="text-sm font-extrabold text-slate-900">
+                                {bld.name} {bld.wing ? `(Wing ${bld.wing})` : ""}
+                              </h4>
+                              {bld.areaName && (
+                                <p className="text-xs text-muted-foreground">{bld.areaName}</p>
+                              )}
+                            </div>
+
+                            {isCompleted ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                                COMPLETE
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900">
+                                ACTIVE
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="pt-2 text-xs text-slate-600 flex items-center justify-between border-t">
+                            <span>Status:</span>
+                            <span className="font-semibold text-slate-800">
+                              {isCompleted ? "Collection Closed" : "Open for Collection"}
                             </span>
-                          )}
-                          {f.contactMobile && (
-                            <span className="text-[10px] font-mono text-muted-foreground block">
-                              📱 {f.contactMobile}
-                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 pt-1 border-t">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => void loadFlats(bld)}
+                            className="flex-1 h-8 text-xs font-bold border-slate-200 hover:bg-slate-50"
+                          >
+                            View Flats →
+                          </Button>
+
+                          {onStartCollection && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => onStartCollection(bld)}
+                              className="flex-1 h-8 text-xs font-bold bg-orange-600 hover:bg-orange-700 text-white"
+                            >
+                              ⚡ Collect
+                            </Button>
                           )}
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="p-12 text-center text-xs text-muted-foreground bg-slate-50 border rounded-xl">
-                Select a building to view and manage its residential flats.
-              </div>
-            )}
-          </div>
-        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+            </div>
+          )}
+        </>
       )}
 
-      {/* 2. STANDALONE COMMERCIAL SHOPS VIEW */}
+      {/* -------------------------------------------------------------
+          3. STANDALONE SHOPS VIEW
+      -------------------------------------------------------------- */}
       {subTab === "shops" && (
-        <Card className="shadow-sm">
-          <CardHeader className="py-3 px-4 border-b bg-slate-50/50 flex flex-row items-center justify-between">
-            <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-700">
-              Commercial Shops Directory ({shops.length})
-            </CardTitle>
+        <div className="space-y-4 animate-in fade-in" data-testid="shops-view">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-slate-800">
+              Commercial Properties ({shops.length})
+            </h3>
             <Button
               type="button"
               size="sm"
               onClick={() => setShowAddShop(true)}
-              className="font-bold text-xs gap-1 cursor-pointer"
+              className="bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs h-8 cursor-pointer"
             >
-              + Add Shop
+              ➕ Add Shop (दुकान जोडा)
             </Button>
-          </CardHeader>
+          </div>
 
-          <CardContent className="p-4">
-            {loadingShops ? (
-              <div className="p-8 text-center text-xs text-muted-foreground">
-                Loading commercial shops...
-              </div>
-            ) : shops.length === 0 ? (
-              <div className="p-8 text-center space-y-2">
-                <p className="text-3xl">🏪</p>
-                <p className="text-xs font-bold text-slate-700">No standalone shops added yet</p>
-                <p className="text-[11px] text-muted-foreground">
-                  Add local street businesses, medicals, bakeries, and garages.
+          {loadingShops ? (
+            <div className="p-8 text-center text-xs text-slate-500 animate-pulse">
+              Loading shops...
+            </div>
+          ) : shops.length === 0 ? (
+            <div className="rounded-2xl border bg-card p-8 text-center space-y-3 shadow-xs">
+              <span className="text-3xl">🏪</span>
+              <div>
+                <h4 className="font-bold text-slate-900 text-sm">No shops registered</h4>
+                <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+                  Add market shops and commercial establishments in the mandal area.
                 </p>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {shops.map((s) => (
+                <div
+                  key={s.id}
+                  className="rounded-xl border bg-card p-3.5 shadow-xs space-y-1.5"
+                >
+                  <h4 className="text-sm font-bold text-slate-900">
+                    🏪 {s.shopName}
+                  </h4>
+                  {s.ownerName && (
+                    <p className="text-xs text-slate-600">👤 {s.ownerName}</p>
+                  )}
+                  {s.contactMobile && (
+                    <p className="text-xs text-slate-500">📞 {s.contactMobile}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* -------------------------------------------------------------
+          MODAL: MINIMAL ADD BUILDING
+      -------------------------------------------------------------- */}
+      {showAddBuilding && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in">
+          <div className="w-full max-w-md rounded-2xl bg-card border p-5 sm:p-6 shadow-xl space-y-4 animate-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b">
+              <div>
+                <h3 className="text-base font-extrabold text-foreground">
+                  Add Building (इमारत जोडा)
+                </h3>
+                <p className="text-xs text-muted-foreground">Minimal setup — discover flats progressively</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddBuilding(false)}
+                className="text-muted-foreground hover:text-foreground text-sm font-semibold p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateBuilding} className="space-y-3.5">
+              <div className="space-y-1">
+                <Label htmlFor="bld-name-input" className="text-xs font-bold">Building Name (इमारतीचे नाव) *</Label>
+                <Input
+                  id="bld-name-input"
+                  required
+                  placeholder="e.g. Shree Krupa Heights"
+                  value={bldName}
+                  onChange={(e) => setBldName(e.target.value)}
+                  className="text-xs h-9"
+                  autoFocus
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="bld-wing-input" className="text-xs font-bold">Wing (विंग) (Optional)</Label>
+                  <Input
+                    id="bld-wing-input"
+                    placeholder="e.g. A"
+                    value={bldWing}
+                    onChange={(e) => setBldWing(e.target.value)}
+                    className="text-xs h-9"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="bld-area-input" className="text-xs font-bold">Area / Landmark (Optional)</Label>
+                  <Input
+                    id="bld-area-input"
+                    placeholder="e.g. Sector 28"
+                    value={bldArea}
+                    onChange={(e) => setBldArea(e.target.value)}
+                    className="text-xs h-9"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t">
                 <Button
                   type="button"
+                  variant="outline"
                   size="sm"
-                  onClick={() => setShowAddShop(true)}
-                  className="mt-2 font-bold text-xs"
+                  onClick={() => setShowAddBuilding(false)}
+                  className="text-xs h-9"
                 >
-                  + Add First Shop
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={submittingBuilding || !bldName.trim()}
+                  size="sm"
+                  className="bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs h-9"
+                >
+                  {submittingBuilding ? "Saving..." : "Create Building (तयार करा)"}
                 </Button>
               </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                {shops.map((s) => (
-                  <div
-                    key={s.id}
-                    className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl hover:shadow-xs transition-shadow"
-                  >
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <span className="text-base">🏪</span>
-                      <span className="font-bold text-sm text-slate-900 truncate">
-                        {s.shopName}
-                      </span>
-                    </div>
-                    {s.ownerName && (
-                      <p className="text-xs text-slate-600">👤 {s.ownerName}</p>
-                    )}
-                    {s.contactMobile && (
-                      <p className="text-xs font-mono text-muted-foreground">📱 {s.contactMobile}</p>
-                    )}
-                    {s.locationNote && (
-                      <p className="text-[11px] text-muted-foreground mt-1 italic">
-                        📍 {s.locationNote}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Modal: Add Building */}
-      {showAddBuilding && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 animate-in fade-in">
-          <Card className="w-full max-w-md shadow-2xl border-t-4 border-t-primary bg-white">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg font-black text-slate-900">
-                🏢 Add Residential Building
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleCreateBuilding} className="space-y-3.5">
-                <div>
-                  <Label htmlFor="bldName" className="text-xs font-bold text-slate-700">
-                    Building Name *
-                  </Label>
-                  <Input
-                    id="bldName"
-                    placeholder="e.g. Shivam Residency"
-                    value={bldName}
-                    onChange={(e) => setBldName(e.target.value)}
-                    className="mt-1"
-                    required
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label htmlFor="bldWing" className="text-xs font-bold text-slate-700">
-                      Wing (Optional)
-                    </Label>
-                    <Input
-                      id="bldWing"
-                      placeholder="e.g. Wing A"
-                      value={bldWing}
-                      onChange={(e) => setBldWing(e.target.value)}
-                      className="mt-1"
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="bldArea" className="text-xs font-bold text-slate-700">
-                      Area / Locality
-                    </Label>
-                    <Input
-                      id="bldArea"
-                      placeholder="e.g. Sector 19"
-                      value={bldArea}
-                      onChange={(e) => setBldArea(e.target.value)}
-                      className="mt-1"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 pt-2">
-                  <Button
-                    type="submit"
-                    disabled={submittingBuilding}
-                    className="flex-1 font-bold text-xs cursor-pointer"
-                  >
-                    {submittingBuilding ? "Creating..." : "Save Building 🏢"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => setShowAddBuilding(false)}
-                    className="text-xs cursor-pointer"
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
+            </form>
+          </div>
         </div>
       )}
 
-      {/* Modal: Add Flat */}
+      {/* -------------------------------------------------------------
+          MODAL: PROGRESSIVE ADD FLAT (+ ADD & CONTINUE)
+      -------------------------------------------------------------- */}
       {showAddFlat && selectedBuilding && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 animate-in fade-in">
-          <Card className="w-full max-w-md shadow-2xl border-t-4 border-t-primary bg-white">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg font-black text-slate-900">
-                🏠 Add Flat to {selectedBuilding.name}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleCreateFlat} className="space-y-3.5">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label htmlFor="flatUnit" className="text-xs font-bold text-slate-700">
-                      Flat / Unit # *
-                    </Label>
-                    <Input
-                      id="flatUnit"
-                      placeholder="e.g. 101"
-                      value={flatUnit}
-                      onChange={(e) => setFlatUnit(e.target.value)}
-                      className="mt-1"
-                      required
-                    />
-                  </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in">
+          <div className="w-full max-w-md rounded-2xl bg-card border p-5 sm:p-6 shadow-xl space-y-4 animate-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b">
+              <div>
+                <h3 className="text-base font-extrabold text-foreground">
+                  Add Flat in {selectedBuilding.name}
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  {selectedBuilding.wing ? `Wing ${selectedBuilding.wing} • ` : ""}Door-to-door discovery
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddFlat(false)}
+                className="text-muted-foreground hover:text-foreground text-sm font-semibold p-1"
+              >
+                ✕
+              </button>
+            </div>
 
-                  <div>
-                    <Label htmlFor="flatFloor" className="text-xs font-bold text-slate-700">
-                      Floor Number
-                    </Label>
-                    <Input
-                      id="flatFloor"
-                      type="number"
-                      placeholder="e.g. 1"
-                      value={flatFloor}
-                      onChange={(e) => setFlatFloor(e.target.value)}
-                      className="mt-1"
-                    />
-                  </div>
-                </div>
+            {(() => {
+              const isDuplicate = flatUnit.trim() && flats.some((f) => (f.unitNumber || f.flatNumber || "").toLowerCase() === flatUnit.trim().toLowerCase());
+              return (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (isDuplicate) return;
+                    void handleCreateFlat(false);
+                  }}
+                  className="space-y-3.5"
+                >
+                  {isDuplicate && (
+                    <div className="rounded-lg bg-amber-500/15 border border-amber-500/30 p-2.5 text-xs text-amber-900 dark:text-amber-200 font-semibold">
+                      ⚠️ Flat {flatUnit.trim()} already exists in this building.
+                    </div>
+                  )}
 
-                <div>
-                  <Label htmlFor="flatOwner" className="text-xs font-bold text-slate-700">
-                    Resident / Owner Name
-                  </Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="flat-unit-input" className="text-xs font-bold">Flat Number (फ्लॅट क्रमांक) *</Label>
+                      <Input
+                        id="flat-unit-input"
+                        required
+                        placeholder="e.g. 402"
+                        value={flatUnit}
+                        onChange={(e) => setFlatUnit(e.target.value)}
+                        className="text-xs h-9 font-bold"
+                        autoFocus
+                      />
+                    </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="flat-floor-input" className="text-xs font-bold">Floor Number (मजला) (Optional)</Label>
                   <Input
-                    id="flatOwner"
-                    placeholder="e.g. Rajesh Shah"
-                    value={flatOwner}
-                    onChange={(e) => setFlatOwner(e.target.value)}
-                    className="mt-1"
+                    id="flat-floor-input"
+                    type="number"
+                    placeholder="e.g. 4"
+                    value={flatFloor}
+                    onChange={(e) => setFlatFloor(e.target.value)}
+                    className="text-xs h-9"
                   />
                 </div>
+              </div>
 
-                <div>
-                  <Label htmlFor="flatMobile" className="text-xs font-bold text-slate-700">
-                    Resident Mobile (Optional)
-                  </Label>
-                  <Input
-                    id="flatMobile"
-                    inputMode="numeric"
-                    maxLength={10}
-                    placeholder="9876543210"
-                    value={flatMobile}
-                    onChange={(e) => setFlatMobile(e.target.value)}
-                    className="mt-1"
-                  />
-                </div>
+              <div className="space-y-1">
+                <Label htmlFor="flat-owner-input" className="text-xs font-bold">Resident / Owner Name (Optional)</Label>
+                <Input
+                  id="flat-owner-input"
+                  placeholder="e.g. Rajesh Patil"
+                  value={flatOwner}
+                  onChange={(e) => setFlatOwner(e.target.value)}
+                  className="text-xs h-9"
+                />
+              </div>
 
-                <div className="flex items-center gap-2 pt-2">
+              <div className="space-y-1">
+                <Label htmlFor="flat-mobile-input" className="text-xs font-bold">Contact Mobile (Optional)</Label>
+                <Input
+                  id="flat-mobile-input"
+                  type="tel"
+                  placeholder="e.g. 9820112233"
+                  value={flatMobile}
+                  onChange={(e) => setFlatMobile(e.target.value)}
+                  className="text-xs h-9"
+                />
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-3 border-t">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAddFlat(false)}
+                  className="text-xs h-9 w-full sm:w-auto"
+                >
+                  Cancel
+                </Button>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto">
                   <Button
                     type="submit"
-                    disabled={submittingFlat}
-                    className="flex-1 font-bold text-xs cursor-pointer"
+                    disabled={submittingFlat || !flatUnit.trim()}
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-9 font-bold flex-1 sm:flex-none border-slate-300"
                   >
-                    {submittingFlat ? "Adding..." : "Add Flat 🏠"}
+                    Add Flat
                   </Button>
+
                   <Button
                     type="button"
-                    variant="ghost"
-                    onClick={() => setShowAddFlat(false)}
-                    className="text-xs cursor-pointer"
+                    disabled={submittingFlat || !flatUnit.trim()}
+                    onClick={() => void handleCreateFlat(true)}
+                    size="sm"
+                    className="bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs h-9 flex-1 sm:flex-none"
                   >
-                    Cancel
+                    ⚡ Add & Continue →
                   </Button>
+                  </div>
                 </div>
               </form>
-            </CardContent>
-          </Card>
+              );
+            })()}
+          </div>
         </div>
       )}
 
-      {/* Modal: Add Shop */}
+      {/* -------------------------------------------------------------
+          MODAL: ADD SHOP
+      -------------------------------------------------------------- */}
       {showAddShop && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 animate-in fade-in">
-          <Card className="w-full max-w-md shadow-2xl border-t-4 border-t-primary bg-white">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg font-black text-slate-900">
-                🏪 Add Standalone Shop
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleCreateShop} className="space-y-3.5">
-                <div>
-                  <Label htmlFor="shopName" className="text-xs font-bold text-slate-700">
-                    Shop / Business Name *
-                  </Label>
-                  <Input
-                    id="shopName"
-                    placeholder="e.g. Om Sai Medical"
-                    value={shopName}
-                    onChange={(e) => setShopName(e.target.value)}
-                    className="mt-1"
-                    required
-                  />
-                </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in">
+          <div className="w-full max-w-md rounded-2xl bg-card border p-5 sm:p-6 shadow-xl space-y-4 animate-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b">
+              <h3 className="text-base font-extrabold text-foreground">
+                Add Commercial Shop (दुकान जोडा)
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowAddShop(false)}
+                className="text-muted-foreground hover:text-foreground text-sm font-semibold p-1"
+              >
+                ✕
+              </button>
+            </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label htmlFor="shopOwner" className="text-xs font-bold text-slate-700">
-                      Owner / Contact Name
-                    </Label>
-                    <Input
-                      id="shopOwner"
-                      placeholder="e.g. Mahesh Patil"
-                      value={shopOwner}
-                      onChange={(e) => setShopOwner(e.target.value)}
-                      className="mt-1"
-                    />
-                  </div>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!shopName.trim()) return;
+                setSubmittingShop(true);
+                try {
+                  await createStandaloneShop({
+                    organizationId,
+                    shopName: shopName.trim(),
+                    ownerName: shopOwner.trim() || undefined,
+                    contactMobile: shopMobile.trim() || undefined,
+                    locationNote: shopLocationNote.trim() || undefined,
+                  });
+                  setShowAddShop(false);
+                  setShopName("");
+                  setShopOwner("");
+                  setShopMobile("");
+                  setShopLocationNote("");
+                  await loadShops();
+                } catch (err: unknown) {
+                  alert(err instanceof Error ? err.message : "Failed to create shop");
+                } finally {
+                  setSubmittingShop(false);
+                }
+              }}
+              className="space-y-3.5"
+            >
+              <div className="space-y-1">
+                <Label className="text-xs font-bold">Shop Name (दुकानाचे नाव) *</Label>
+                <Input
+                  required
+                  placeholder="e.g. Om Sai Medicals"
+                  value={shopName}
+                  onChange={(e) => setShopName(e.target.value)}
+                  className="text-xs h-9"
+                  autoFocus
+                />
+              </div>
 
-                  <div>
-                    <Label htmlFor="shopMobile" className="text-xs font-bold text-slate-700">
-                      Contact Mobile
-                    </Label>
-                    <Input
-                      id="shopMobile"
-                      inputMode="numeric"
-                      maxLength={10}
-                      placeholder="9876543210"
-                      value={shopMobile}
-                      onChange={(e) => setShopMobile(e.target.value)}
-                      className="mt-1"
-                    />
-                  </div>
-                </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-bold">Owner / Contact Person (Optional)</Label>
+                <Input
+                  placeholder="e.g. Suresh Shah"
+                  value={shopOwner}
+                  onChange={(e) => setShopOwner(e.target.value)}
+                  className="text-xs h-9"
+                />
+              </div>
 
-                <div>
-                  <Label htmlFor="shopNote" className="text-xs font-bold text-slate-700">
-                    Location Note (Optional)
-                  </Label>
-                  <Input
-                    id="shopNote"
-                    placeholder="e.g. Near Shiv Mandir, Main Market"
-                    value={shopLocationNote}
-                    onChange={(e) => setShopLocationNote(e.target.value)}
-                    className="mt-1"
-                  />
-                </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-bold">Contact Mobile (Optional)</Label>
+                <Input
+                  type="tel"
+                  placeholder="e.g. 9820556677"
+                  value={shopMobile}
+                  onChange={(e) => setShopMobile(e.target.value)}
+                  className="text-xs h-9"
+                />
+              </div>
 
-                <div className="flex items-center gap-2 pt-2">
-                  <Button
-                    type="submit"
-                    disabled={submittingShop}
-                    className="flex-1 font-bold text-xs cursor-pointer"
-                  >
-                    {submittingShop ? "Adding..." : "Add Shop 🏪"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => setShowAddShop(false)}
-                    className="text-xs cursor-pointer"
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
+              <div className="flex items-center justify-end gap-2 pt-3 border-t">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAddShop(false)}
+                  className="text-xs h-9"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={submittingShop || !shopName.trim()}
+                  size="sm"
+                  className="bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs h-9"
+                >
+                  {submittingShop ? "Saving..." : "Create Shop"}
+                </Button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
+
     </div>
   );
 }
