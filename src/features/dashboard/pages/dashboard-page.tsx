@@ -22,7 +22,7 @@ import { VolunteerHandoverCard } from "../components/volunteer-handover-card";
 import { RoleNavigation, type NavigationTab } from "@/app/layouts/RoleNavigation";
 import { VolunteerManagementPanel } from "@/features/admin/volunteers/components/volunteer-management-panel";
 import { BuildingsManagementPanel } from "@/features/admin/master-data/components/buildings-management-panel";
-import { SecretaryOverviewHero } from "@/features/analytics/components/secretary-overview-hero";
+import { SecretaryCommandCenter } from "@/features/analytics/components/secretary-command-center";
 import { VolunteerFinancialLedger } from "@/features/analytics/components/volunteer-financial-ledger";
 import { ReceiptSearchPanel } from "@/features/analytics/components/receipt-search-panel";
 import { CampaignExportPanel } from "@/features/analytics/components/campaign-export-panel";
@@ -167,6 +167,12 @@ export function DashboardPage() {
     return unsubscribe;
   }, [session?.receiptBookId, loadReceiptHistory]);
 
+  useEffect(() => {
+    if (isAdmin && organizationId) {
+      void loadBuildings();
+    }
+  }, [isAdmin, organizationId, loadBuildings]);
+
   const {
     handover,
     setHandover,
@@ -258,6 +264,7 @@ export function DashboardPage() {
     ledgerError: secretaryLedgerError,
     refreshOverview,
     refreshLedger,
+    refreshAll,
   } = useSecretaryAnalytics({
     eventId: effectiveEventId,
     isAdmin,
@@ -341,12 +348,23 @@ export function DashboardPage() {
       {activeTab === "collection" && (
         <div className="space-y-6 animate-in fade-in">
           {isAdmin && (
-            <SecretaryOverviewHero
+            <SecretaryCommandCenter
               metrics={secretaryMetrics}
+              ledger={secretaryLedger}
+              buildings={buildings}
+              recentReceipts={receipts}
+              pendingSyncCount={pendingReceipts.length}
               loading={secretaryAnalyticsLoading}
+              ledgerLoading={secretaryLedgerLoading}
               error={secretaryAnalyticsError}
-              onRefresh={() => void refreshOverview()}
-              onReviewHandovers={() => setActiveTab("handovers")}
+              ledgerError={secretaryLedgerError}
+              onRefresh={() => {
+                void refreshAll();
+                void loadBuildings();
+              }}
+              onNavigateTab={(tab) => setActiveTab(tab)}
+              onViewReceipt={(receipt) => setReceiptToView(receipt)}
+              onSync={() => void handleSyncNextReceipt()}
             />
           )}
 
@@ -356,7 +374,10 @@ export function DashboardPage() {
               loading={adminHandoverLoading}
               error={adminHandoverError}
               actionLoadingId={adminActionLoading}
-              onRefresh={() => void loadAdminHandovers()}
+              onRefresh={() => {
+                void loadAdminHandovers();
+                void refreshLedger();
+              }}
               onVerifyHandover={(id) => void handleVerifyHandover(id)}
               onRejectHandover={(id, reason) =>
                 void handleRejectHandover(id, reason)

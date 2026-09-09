@@ -18,12 +18,16 @@ export type ActiveCollectionSession = CollectionSessionContext;
 
 export interface UseBuildingCollectionProps {
   session: ActiveCollectionSession | null;
+  eventId?: string | null;
+  organizationId?: string | null;
   onReceiptCreated: (receipt: LocalReceipt) => void;
   onReceiptHistoryRefresh: (receiptBookId: string) => Promise<void>;
 }
 
 export function useBuildingCollection({
   session,
+  eventId,
+  organizationId,
   onReceiptCreated,
   onReceiptHistoryRefresh,
 }: UseBuildingCollectionProps) {
@@ -38,16 +42,19 @@ export function useBuildingCollection({
   const [fastReceiptCreating, setFastReceiptCreating] = useState<boolean>(false);
   const [fastReceiptError, setFastReceiptError] = useState<string | null>(null);
 
+  const effectiveEventId = session?.eventId || eventId;
+  const effectiveOrgId = session?.organizationId || organizationId;
+
   const loadBuildings = useCallback(async () => {
-    if (!session) return;
+    if (!effectiveEventId || !effectiveOrgId) return;
     setLoadingBuildings(true);
     try {
-      const list = await fetchEventBuildingSummaries(session.eventId, session.organizationId);
+      const list = await fetchEventBuildingSummaries(effectiveEventId, effectiveOrgId);
       setBuildings(list);
     } finally {
       setLoadingBuildings(false);
     }
-  }, [session]);
+  }, [effectiveEventId, effectiveOrgId]);
 
   const selectBuilding = useCallback(
     async (building: CachedBuildingSummary) => {
