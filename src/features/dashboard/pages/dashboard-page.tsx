@@ -691,6 +691,16 @@ export function DashboardPage() {
               onViewReceipt={(receipt) =>
                 setReceiptToView(receipt as LocalReceipt)
               }
+              onNavigateToBuilding={(buildingId) => {
+                setActiveTab("collection");
+                const b = buildings.find(
+                  (item) => item.buildingId === buildingId || item.buildingName === buildingId
+                );
+                if (b) {
+                  void selectBuilding(b);
+                }
+              }}
+              receiptPrefix={session?.prefix || "VP-"}
             />
           ) : (
             <>

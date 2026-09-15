@@ -3,11 +3,13 @@
  * Phase 9-4 Step 4C: State management, debounce, pagination, and race condition defense
  */
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   searchOrganizationReceipts,
   type SearchReceiptItem,
 } from "../services/receipt-search.service";
+
+export type DateFilterOption = "all" | "today" | "yesterday";
 
 export interface UseReceiptSearchOptions {
   eventId: string | null;
@@ -22,6 +24,7 @@ export function useReceiptSearch({
   const [paymentMode, setPaymentMode] = useState<string>("all");
   const [status, setStatus] = useState<string>("all");
   const [volunteerId, setVolunteerId] = useState<string | null>(null);
+  const [dateFilter, setDateFilter] = useState<DateFilterOption>("all");
 
   const [receipts, setReceipts] = useState<SearchReceiptItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -126,6 +129,29 @@ export function useReceiptSearch({
     return () => clearTimeout(timer);
   }, [query, paymentMode, status, volunteerId, executeSearch, hasSearched]);
 
+  // Client-side date filter computation
+  const filteredReceipts = useMemo(() => {
+    if (dateFilter === "all") return receipts;
+
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+
+    const yesterday = new Date(now.getTime() - 86400000);
+    const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, "0")}-${String(yesterday.getDate()).padStart(2, "0")}`;
+
+    return receipts.filter((r) => {
+      try {
+        const rDate = new Date(r.created_at);
+        const rDateStr = `${rDate.getFullYear()}-${String(rDate.getMonth() + 1).padStart(2, "0")}-${String(rDate.getDate()).padStart(2, "0")}`;
+        if (dateFilter === "today") return rDateStr === todayStr;
+        if (dateFilter === "yesterday") return rDateStr === yesterdayStr;
+        return true;
+      } catch {
+        return true;
+      }
+    });
+  }, [receipts, dateFilter]);
+
   // Load More action
   const loadMore = useCallback(() => {
     if (loading || loadingMore || !hasMore || !eventId) return;
@@ -164,6 +190,7 @@ export function useReceiptSearch({
     setPaymentMode("all");
     setStatus("all");
     setVolunteerId(null);
+    setDateFilter("all");
     setReceipts([]);
     setTotalCount(0);
     setHasMore(false);
@@ -181,7 +208,10 @@ export function useReceiptSearch({
     setStatus,
     volunteerId,
     setVolunteerId,
+    dateFilter,
+    setDateFilter,
     receipts,
+    filteredReceipts,
     totalCount,
     hasMore,
     loading,

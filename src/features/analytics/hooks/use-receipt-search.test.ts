@@ -330,4 +330,135 @@ describe("useReceiptSearch Hook (Step 4C)", () => {
     expect(result.current.receipts[0].donor_name).toBe("Donor B (Newer)");
     expect(result.current.totalCount).toBe(1);
   });
+
+  it("5. dateFilter correctly filters receipts client-side for today, yesterday, and all", async () => {
+    const now = new Date();
+    const todayIso = now.toISOString();
+    const yesterdayIso = new Date(now.getTime() - 86400000).toISOString();
+    const olderIso = new Date(now.getTime() - 86400000 * 5).toISOString();
+
+    vi.spyOn(receiptSearchService, "searchOrganizationReceipts").mockResolvedValue({
+      success: true,
+      event_id: "event-1",
+      organization_id: "org-1",
+      is_admin: true,
+      total_count: 3,
+      limit: 25,
+      offset: 0,
+      has_more: false,
+      receipts: [
+        {
+          id: "rec-today",
+          receipt_number: 101,
+          receipt_prefix: "VP-",
+          book_number: "BK-1",
+          amount: 500,
+          payment_mode: "cash",
+          payment_reference: null,
+          donor_name: "Today Donor",
+          donor_mobile: "9820011111",
+          property_id: null,
+          property_type: null,
+          unit_number: null,
+          building_name: null,
+          building_wing: null,
+          volunteer_id: "vol-1",
+          volunteer_name: "Vinod",
+          collection_session_id: "sess-1",
+          status: "issued",
+          void_reason: null,
+          voided_at: null,
+          voided_by_name: null,
+          notes: null,
+          created_at: todayIso,
+        },
+        {
+          id: "rec-yesterday",
+          receipt_number: 102,
+          receipt_prefix: "VP-",
+          book_number: "BK-1",
+          amount: 1000,
+          payment_mode: "upi",
+          payment_reference: null,
+          donor_name: "Yesterday Donor",
+          donor_mobile: "9820022222",
+          property_id: null,
+          property_type: null,
+          unit_number: null,
+          building_name: null,
+          building_wing: null,
+          volunteer_id: "vol-1",
+          volunteer_name: "Vinod",
+          collection_session_id: "sess-1",
+          status: "issued",
+          void_reason: null,
+          voided_at: null,
+          voided_by_name: null,
+          notes: null,
+          created_at: yesterdayIso,
+        },
+        {
+          id: "rec-older",
+          receipt_number: 103,
+          receipt_prefix: "VP-",
+          book_number: "BK-1",
+          amount: 1500,
+          payment_mode: "cash",
+          payment_reference: null,
+          donor_name: "Older Donor",
+          donor_mobile: "9820033333",
+          property_id: null,
+          property_type: null,
+          unit_number: null,
+          building_name: null,
+          building_wing: null,
+          volunteer_id: "vol-1",
+          volunteer_name: "Vinod",
+          collection_session_id: "sess-1",
+          status: "issued",
+          void_reason: null,
+          voided_at: null,
+          voided_by_name: null,
+          notes: null,
+          created_at: olderIso,
+        },
+      ],
+    });
+
+    const { result } = renderHook(() =>
+      useReceiptSearch({ eventId: "event-1" })
+    );
+
+    act(() => {
+      result.current.setQuery("Donor");
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(360);
+    });
+
+    // Default: dateFilter === 'all'
+    expect(result.current.dateFilter).toBe("all");
+    expect(result.current.receipts.length).toBe(3);
+    expect(result.current.filteredReceipts.length).toBe(3);
+
+    // Filter to 'today'
+    act(() => {
+      result.current.setDateFilter("today");
+    });
+    expect(result.current.filteredReceipts.length).toBe(1);
+    expect(result.current.filteredReceipts[0].id).toBe("rec-today");
+
+    // Filter to 'yesterday'
+    act(() => {
+      result.current.setDateFilter("yesterday");
+    });
+    expect(result.current.filteredReceipts.length).toBe(1);
+    expect(result.current.filteredReceipts[0].id).toBe("rec-yesterday");
+
+    // Reset filters restores dateFilter to 'all'
+    act(() => {
+      result.current.resetFilters();
+    });
+    expect(result.current.dateFilter).toBe("all");
+  });
 });
