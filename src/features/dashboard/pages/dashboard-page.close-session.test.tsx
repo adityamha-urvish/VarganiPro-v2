@@ -54,13 +54,41 @@ vi.mock("@/supabase/client", () => ({
     rpc: supabaseRpc,
 
     from(table: string) {
+      if (table === "users") {
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({
+                data: { id: "user-1" },
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
+
       if (table === "organization_members") {
         return {
           select: () => ({
             eq: () => ({
               limit: () => ({
                 maybeSingle: async () => ({
-                  data: null,
+                  data: { organization_id: "org-1" },
+                  error: null,
+                }),
+              }),
+            }),
+          }),
+        };
+      }
+
+      if (table === "volunteers") {
+        return {
+          select: () => ({
+            eq: () => ({
+              limit: () => ({
+                maybeSingle: async () => ({
+                  data: { organization_id: "org-1" },
                   error: null,
                 }),
               }),

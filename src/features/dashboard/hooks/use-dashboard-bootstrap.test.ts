@@ -74,6 +74,19 @@ describe("useDashboardBootstrap Hook", () => {
     });
 
     supabaseFromMock.mockImplementation((table: string) => {
+      if (table === "users") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              maybeSingle: vi.fn(async () => ({
+                data: { id: "app-user-1" },
+                error: null,
+              })),
+            })),
+          })),
+        };
+      }
+
       if (table === "organization_members") {
         return {
           select: vi.fn(() => ({
@@ -154,9 +167,29 @@ describe("useDashboardBootstrap Hook", () => {
     expect(onSessionLoaded).toHaveBeenCalledWith(mockSession);
   });
 
-  it("sets error when both primary and fallback fail for volunteer", async () => {
+  it("sets session to null without error when volunteer has no collection session (State A)", async () => {
     initializeCollectionSessionMock.mockRejectedValueOnce(
-      new Error("No active profile")
+      new Error(
+        "No open or recently completed collection session is assigned to this volunteer."
+      )
+    );
+    loadCurrentCollectionSessionMock.mockResolvedValueOnce(null);
+
+    const { result } = renderHook(() => useDashboardBootstrap());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(result.current.isAdmin).toBe(false);
+    expect(result.current.session).toBeNull();
+    expect(result.current.error).toBeNull();
+    expect(result.current.organizationId).toBe("org-1");
+  });
+
+  it("sets error when unexpected/fatal failure occurs for volunteer", async () => {
+    initializeCollectionSessionMock.mockRejectedValueOnce(
+      new Error("Database connection timed out")
     );
     loadCurrentCollectionSessionMock.mockResolvedValueOnce(null);
 
@@ -167,10 +200,10 @@ describe("useDashboardBootstrap Hook", () => {
     });
 
     expect(result.current.session).toBeNull();
-    expect(result.current.error).toBe("No active profile");
+    expect(result.current.error).toBe("Database connection timed out");
   });
 
-  it("sets session to null without error when admin has no active session", async () => {
+  it("sets session to null without error and resolves organizationId when admin has no active session", async () => {
     supabaseRpcMock.mockImplementation(async (method: string) => {
       if (method === "current_user_role") {
         return { data: "admin", error: null };
@@ -179,7 +212,7 @@ describe("useDashboardBootstrap Hook", () => {
     });
 
     initializeCollectionSessionMock.mockRejectedValueOnce(
-      new Error("No active volunteer profile")
+      new Error("No active volunteer profile is linked to this VarganiPro user.")
     );
     loadCurrentCollectionSessionMock.mockResolvedValueOnce(null);
 
@@ -192,5 +225,6 @@ describe("useDashboardBootstrap Hook", () => {
     expect(result.current.isAdmin).toBe(true);
     expect(result.current.session).toBeNull();
     expect(result.current.error).toBeNull();
+    expect(result.current.organizationId).toBe("org-1");
   });
 });

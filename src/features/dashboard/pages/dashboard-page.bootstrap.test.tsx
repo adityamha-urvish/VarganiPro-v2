@@ -127,6 +127,19 @@ describe("DashboardPage Bootstrap & Rehydration Characterization", () => {
     });
 
     supabaseFromMock.mockImplementation((table: string) => {
+      if (table === "users") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              maybeSingle: vi.fn(async () => ({
+                data: { id: "user-1" },
+                error: null,
+              })),
+            })),
+          })),
+        };
+      }
+
       if (table === "organization_members") {
         return {
           select: vi.fn(() => ({
@@ -590,5 +603,154 @@ describe("DashboardPage Bootstrap & Rehydration Characterization", () => {
     // Main session UI is omitted
     expect(screen.queryByText("BOOK-01")).toBeNull();
     expect(screen.queryByLabelText("Donor Name *")).toBeNull();
+  });
+
+  it("6. Authenticated volunteer with no session: renders VolunteerHome State A without fatal error", async () => {
+    initializeCollectionSessionMock.mockRejectedValueOnce(
+      new Error(
+        "No open or recently completed collection session is assigned to this volunteer."
+      )
+    );
+
+    supabaseFromMock.mockImplementation((table: string) => {
+      if (table === "users") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              maybeSingle: vi.fn(async () => ({
+                data: { id: "user-1" },
+                error: null,
+              })),
+            })),
+          })),
+        };
+      }
+
+      if (table === "volunteers") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                maybeSingle: vi.fn(async () => ({
+                  data: {
+                    id: "vol-1",
+                    organization_id: "org-1",
+                    user_id: "user-1",
+                    name: "Volunteer One",
+                    status: "active",
+                  },
+                  error: null,
+                })),
+              })),
+            })),
+          })),
+        };
+      }
+
+      if (table === "organization_members") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              limit: vi.fn(() => ({
+                maybeSingle: vi.fn(async () => ({
+                  data: { organization_id: "org-1" },
+                  error: null,
+                })),
+              })),
+            })),
+          })),
+        };
+      }
+
+      if (table === "collection_sessions") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                order: vi.fn(async () => ({ data: [], error: null })),
+              })),
+              in: vi.fn(() => ({
+                order: vi.fn(() => ({
+                  limit: vi.fn(async () => ({ data: [], error: null })),
+                })),
+              })),
+              order: vi.fn(() => ({
+                limit: vi.fn(async () => ({ data: [], error: null })),
+              })),
+            })),
+          })),
+        };
+      }
+
+      if (table === "events") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              order: vi.fn(async () => ({
+                data: [
+                  {
+                    id: "event-1",
+                    name: "Ganesh Utsav 2026",
+                    code: "GU26",
+                    is_active: true,
+                  },
+                ],
+                error: null,
+              })),
+            })),
+          })),
+        };
+      }
+
+      if (table === "receipt_books") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              or: vi.fn(() => ({
+                order: vi.fn(async () => ({
+                  data: [
+                    {
+                      id: "book-1",
+                      book_number: "BOOK-01",
+                      prefix: "VP-",
+                      start_number: 1,
+                      end_number: 100,
+                      current_number: 1,
+                      status: "available",
+                      event_id: "event-1",
+                    },
+                  ],
+                  error: null,
+                })),
+              })),
+            })),
+          })),
+        };
+      }
+
+      return {
+        select: vi.fn(() => ({
+          eq: vi.fn(async () => ({ data: [], error: null })),
+        })),
+      };
+    });
+
+    render(<DashboardPage />);
+
+    // Fatal error screen is NOT displayed
+    expect(
+      screen.queryByText("Unable to initialize collection session")
+    ).toBeNull();
+
+    // VolunteerHome State A is rendered with "संकलन सुरू करा" CTA
+    const startBtn = await screen.findByTestId("volunteer-start-btn");
+    expect(startBtn).toBeTruthy();
+    expect(startBtn.textContent).toContain("संकलन सुरू करा");
+
+    // More trigger is accessible
+    expect(screen.getByTestId("volunteer-more-trigger")).toBeTruthy();
+
+    // Today's total is shown as ₹0
+    expect(screen.getByText("₹0")).toBeTruthy();
   });
 });

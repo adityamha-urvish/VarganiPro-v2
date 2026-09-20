@@ -126,6 +126,19 @@ function setupSupabaseTables(options: {
   } = options;
 
   supabaseFromMock.mockImplementation((table: string) => {
+    if (table === "users") {
+      return {
+        select: () => ({
+          eq: () => ({
+            maybeSingle: async () => ({
+              data: { id: "user-admin-1" },
+              error: null,
+            }),
+          }),
+        }),
+      };
+    }
+
     if (table === "organization_members") {
       return {
         select: () => ({

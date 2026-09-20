@@ -83,15 +83,34 @@ export function useDashboardBootstrap(
         const authUserId = authData.user?.id;
 
         if (authUserId) {
-          const { data: membership } = await supabase
-            .from("organization_members")
-            .select("organization_id")
-            .eq("user_id", authUserId)
-            .limit(1)
+          const { data: appUser } = await supabase
+            .from("users")
+            .select("id")
+            .eq("auth_user_id", authUserId)
             .maybeSingle();
 
-          if (membership?.organization_id) {
-            setOrganizationId(membership.organization_id);
+          if (appUser?.id) {
+            const { data: membership } = await supabase
+              .from("organization_members")
+              .select("organization_id")
+              .eq("user_id", appUser.id)
+              .limit(1)
+              .maybeSingle();
+
+            if (membership?.organization_id) {
+              setOrganizationId(membership.organization_id);
+            } else {
+              const { data: volunteerProfile } = await supabase
+                .from("volunteers")
+                .select("organization_id")
+                .eq("user_id", appUser.id)
+                .limit(1)
+                .maybeSingle();
+
+              if (volunteerProfile?.organization_id) {
+                setOrganizationId(volunteerProfile.organization_id);
+              }
+            }
           }
         }
 
@@ -142,12 +161,25 @@ export function useDashboardBootstrap(
             if (onSessionLoadedRef.current) {
               await onSessionLoadedRef.current(directSession);
             }
-          } else if (!admin) {
-            throw sessionError;
           } else {
+            const isNoSession =
+              sessionError instanceof Error &&
+              (sessionError.message.includes(
+                "No open or recently completed collection session"
+              ) ||
+                sessionError.message.includes(
+                  "does not have a receipt book assigned"
+                ));
+
+            if (!admin && !isNoSession) {
+              throw sessionError;
+            }
+
             setSession(null);
             console.log(
-              "No current open collection session. Showing admin dashboard and Start Collection."
+              admin
+                ? "No current open collection session. Showing admin dashboard and Start Collection."
+                : "No current open collection session. Showing volunteer home State A (Start Collection)."
             );
           }
         }

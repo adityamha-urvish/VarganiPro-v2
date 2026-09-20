@@ -61,6 +61,19 @@ vi.mock("@/supabase/client", () => ({
     rpc: supabaseRpcMock,
 
     from(table: string) {
+      if (table === "users") {
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({
+                data: { id: "user-vol-1" },
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
+
       if (table === "organization_members") {
         return {
           select: () => ({
