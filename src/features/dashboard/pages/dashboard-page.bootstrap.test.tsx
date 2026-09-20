@@ -289,7 +289,7 @@ describe("DashboardPage Bootstrap & Rehydration Characterization", () => {
     // Renders active session summary
     expect(await screen.findByText("BOOK-01")).toBeTruthy();
     expect(screen.getByText("VP-12")).toBeTruthy();
-    expect(screen.getAllByText("₹501.00").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("₹501").length).toBeGreaterThan(0);
 
     // Verifies role resolution
     expect(supabaseRpcMock).toHaveBeenCalledWith("current_user_role");
@@ -310,14 +310,10 @@ describe("DashboardPage Bootstrap & Rehydration Characterization", () => {
     // Verifies receipt history hydration
     expect(getLocalReceiptsMock).toHaveBeenCalledWith("book-1");
 
-    // Verifies ReceiptCreationForm is present for open session
-    expect(screen.getByLabelText("Donor Name *")).toBeTruthy();
-    expect(
-      screen.getByRole("button", { name: "Create Receipt #12" })
-    ).toBeTruthy();
+    // Verifies Volunteer Home is present for open session
+    expect(screen.getByTestId("volunteer-collect-btn")).toBeTruthy();
+    expect(screen.getByText(/पावती तयार करा/i)).toBeTruthy();
 
-    // Verifies volunteer handover card is NOT rendered for open session
-    expect(screen.queryByText("Collection Handover")).toBeNull();
     // Verifies admin panel is NOT rendered for volunteer
     expect(screen.queryByText("Collection Handover Verification")).toBeNull();
   });
@@ -328,23 +324,10 @@ describe("DashboardPage Bootstrap & Rehydration Characterization", () => {
 
     render(<DashboardPage />);
 
-    // Renders completed session summary
+    // Renders completed session summary on Volunteer Home State A
     expect(await screen.findByText("BOOK-01")).toBeTruthy();
-    expect(screen.getAllByText(/completed/i).length).toBeGreaterThan(0);
-
-    // Verifies Volunteer Handover card is rendered for completed session
-    expect(
-      screen.getByRole("button", { name: /Start Handover/i })
-    ).toBeTruthy();
-
-    // Verifies Start New Collection card is rendered
-    expect(screen.getByText("Start New Collection")).toBeTruthy();
-
-    // Verifies ReceiptCreationForm indicates session is completed
-    const submitBtn = screen.getByRole("button", {
-      name: "Collection Session Completed",
-    });
-    expect(submitBtn.hasAttribute("disabled")).toBe(true);
+    expect(screen.getByTestId("volunteer-start-btn")).toBeTruthy();
+    expect(screen.getByText(/संकलन सुरू करा/i)).toBeTruthy();
   });
 
   it("3. Primary initialization failure → direct-query fallback: restores session via loadCurrentCollectionSession", async () => {

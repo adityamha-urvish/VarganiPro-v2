@@ -238,6 +238,10 @@ describe("DashboardPage receipt creation workflow characterization", () => {
 
     render(<DashboardPage />);
 
+    // Navigate to Collection / Buildings from Volunteer Home
+    const collectBtn = await screen.findByTestId("volunteer-collect-btn");
+    fireEvent.click(collectBtn);
+
     expect(await screen.findByText("New Receipt")).toBeTruthy();
 
     const donorNameInput = screen.getByLabelText(/Donor Name/i);
@@ -289,6 +293,9 @@ describe("DashboardPage receipt creation workflow characterization", () => {
   it("validates donor name and blocks creation when donor name is empty or whitespace", async () => {
     render(<DashboardPage />);
 
+    const collectBtn = await screen.findByTestId("volunteer-collect-btn");
+    fireEvent.click(collectBtn);
+
     expect(await screen.findByText("New Receipt")).toBeTruthy();
 
     const amountInput = screen.getByLabelText(/Amount/i);
@@ -308,6 +315,9 @@ describe("DashboardPage receipt creation workflow characterization", () => {
 
   it("validates amount and blocks creation when amount is zero or negative", async () => {
     render(<DashboardPage />);
+
+    const collectBtn = await screen.findByTestId("volunteer-collect-btn");
+    fireEvent.click(collectBtn);
 
     expect(await screen.findByText("New Receipt")).toBeTruthy();
 
@@ -332,6 +342,9 @@ describe("DashboardPage receipt creation workflow characterization", () => {
     );
 
     render(<DashboardPage />);
+
+    const collectBtn = await screen.findByTestId("volunteer-collect-btn");
+    fireEvent.click(collectBtn);
 
     expect(await screen.findByText("New Receipt")).toBeTruthy();
 
@@ -365,6 +378,9 @@ describe("DashboardPage receipt creation workflow characterization", () => {
 
     render(<DashboardPage />);
 
+    const collectBtn = await screen.findByTestId("volunteer-collect-btn");
+    fireEvent.click(collectBtn);
+
     expect(await screen.findByText("New Receipt")).toBeTruthy();
 
     const donorNameInput = screen.getByLabelText(/Donor Name/i);
@@ -395,6 +411,9 @@ describe("DashboardPage receipt creation workflow characterization", () => {
     syncNextReceiptMock.mockResolvedValue({ success: true, alreadyExists: false });
 
     render(<DashboardPage />);
+
+    const collectBtn = await screen.findByTestId("volunteer-collect-btn");
+    fireEvent.click(collectBtn);
 
     expect(await screen.findByText("New Receipt")).toBeTruthy();
 
@@ -434,6 +453,10 @@ describe("DashboardPage receipt creation workflow characterization", () => {
 
     render(<DashboardPage />);
 
+    expect(await screen.findByTestId("volunteer-more-trigger")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("volunteer-more-trigger"));
+    fireEvent.click(screen.getByText(/सत्र तपशील/i));
+
     const submitButton = await screen.findByRole("button", {
       name: /Collection Session Completed/i,
     });
@@ -468,6 +491,9 @@ describe("DashboardPage receipt creation workflow characterization", () => {
     syncNextReceiptMock.mockResolvedValue({ success: true, alreadyExists: false });
 
     render(<DashboardPage />);
+
+    const collectBtn = await screen.findByTestId("volunteer-collect-btn");
+    fireEvent.click(collectBtn);
 
     // 1. Initial display
     expect(await screen.findByText("Receipt #1000")).toBeTruthy();
@@ -516,6 +542,9 @@ describe("DashboardPage receipt creation workflow characterization", () => {
     syncNextReceiptMock.mockRejectedValueOnce(new Error("Network error"));
 
     render(<DashboardPage />);
+
+    const collectBtn = await screen.findByTestId("volunteer-collect-btn");
+    fireEvent.click(collectBtn);
 
     expect(await screen.findByText("Receipt #1000")).toBeTruthy();
 

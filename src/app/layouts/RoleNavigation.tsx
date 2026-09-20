@@ -84,41 +84,43 @@ export function RoleNavigation({
       </div>
 
       {/* -------------------------------------------------------------
-          2. MOBILE FIXED BOTTOM NAVIGATION BAR
+          2. MOBILE FIXED BOTTOM NAVIGATION BAR (ADMIN ONLY)
       -------------------------------------------------------------- */}
-      <nav
-        aria-label="Bottom Navigation"
-        className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/80 px-2 py-1.5 shadow-lg"
-      >
-        <div className={`grid gap-1 ${isAdmin ? "grid-cols-6" : "grid-cols-3"}`}>
-          {tabs.map((t) => {
-            const isActive = activeTab === t.id;
-            return (
-              <button
-                key={t.id}
-                type="button"
-                data-testid={`mobile-nav-tab-${t.id}`}
-                onClick={() => onTabChange(t.id)}
-                className={`min-h-[48px] py-1 px-1 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer ${
-                  isActive
-                    ? "text-orange-600 font-bold bg-orange-50"
-                    : "text-slate-600 hover:text-slate-900 font-medium"
-                }`}
-              >
-                <div className="relative">
-                  <span className="text-base leading-none">{t.icon}</span>
-                  {t.id === "history" && pendingSyncCount > 0 && (
-                    <span className="absolute -top-1 -right-2 h-2 w-2 rounded-full bg-amber-500" />
-                  )}
-                </div>
-                <span className="text-[10px] mt-1 font-bold truncate max-w-[54px]">
-                  {t.label}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </nav>
+      {isAdmin && (
+        <nav
+          aria-label="Bottom Navigation"
+          className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/80 px-2 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] shadow-lg"
+        >
+          <div className="grid gap-1 grid-cols-6">
+            {tabs.map((t) => {
+              const isActive = activeTab === t.id;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  data-testid={`mobile-nav-tab-${t.id}`}
+                  onClick={() => onTabChange(t.id)}
+                  className={`min-h-[48px] py-1 px-1 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer ${
+                    isActive
+                      ? "text-orange-600 font-bold bg-orange-50"
+                      : "text-slate-600 hover:text-slate-900 font-medium"
+                  }`}
+                >
+                  <div className="relative">
+                    <span className="text-base leading-none">{t.icon}</span>
+                    {t.id === "history" && pendingSyncCount > 0 && (
+                      <span className="absolute -top-1 -right-2 h-2 w-2 rounded-full bg-amber-500" />
+                    )}
+                  </div>
+                  <span className="text-[10px] mt-1 font-bold truncate max-w-[54px]">
+                    {t.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+      )}
     </>
   );
 }

@@ -194,6 +194,11 @@ describe("DashboardPage rejected handover resubmission characterization", () => 
   it("restores rejected handover data, allows editing, and resubmits to submit_collection_handover", async () => {
     render(<DashboardPage />);
 
+    // Open Handover from Volunteer Home More menu
+    expect(await screen.findByTestId("volunteer-more-trigger")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("volunteer-more-trigger"));
+    fireEvent.click(screen.getByText(/हस्तांतरण/i));
+
     // 1 & 4. Verify completed session is loaded and rejected handover status is displayed
     expect(await screen.findByText(/Session Handover/i)).toBeTruthy();
     expect(screen.getAllByText(/Rejected/i).length).toBeGreaterThan(0);

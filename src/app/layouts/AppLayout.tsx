@@ -122,10 +122,10 @@ export function AppLayout({
           {/* Brand & Context */}
           <div className="flex items-center gap-3">
             <div className="flex items-baseline gap-1.5" title="VarganiPro">
-              <span className="font-brand-marathi text-2xl font-black text-slate-900 tracking-tight">
+              <span className="font-brand-marathi text-2xl font-black text-slate-950 tracking-tight leading-none">
                 वर्गणी
               </span>
-              <span className="font-brand-pro text-xs font-black text-amber-600 bg-amber-50 border border-amber-300/80 px-1.5 py-0.5 rounded uppercase tracking-wider">
+              <span className="font-brand-pro text-[11px] font-black text-amber-600 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded-md uppercase tracking-wider leading-none">
                 PRO
               </span>
               {/* Screen-reader text for accessibility and test suite compatibility */}
@@ -220,21 +220,21 @@ export function AppLayout({
       </header>
 
       {/* -------------------------------------------------------------
-          MAIN CONTENT CONTAINER (WITH MOBILE SAFE-BOTTOM PADDING)
+          MAIN CONTENT CONTAINER (WITH DYNAMIC SAFE-BOTTOM PADDING)
       -------------------------------------------------------------- */}
-      <main className="flex-1 mx-auto w-full max-w-7xl px-4 sm:px-6 py-6 pb-28 sm:pb-8">
+      <main className={`flex-1 mx-auto w-full max-w-7xl px-4 sm:px-6 py-4 sm:py-6 ${isAdmin && onTabChange ? "pb-[calc(4.5rem+env(safe-area-inset-bottom))]" : "pb-[max(1.5rem,env(safe-area-inset-bottom))]"} sm:pb-8`}>
         {children}
       </main>
 
       {/* -------------------------------------------------------------
-          MOBILE BOTTOM NAVIGATION BAR (FIXED)
+          MOBILE BOTTOM NAVIGATION BAR (ADMIN ONLY)
       -------------------------------------------------------------- */}
-      {onTabChange && (
+      {isAdmin && onTabChange && (
         <nav
           aria-label="Bottom Navigation"
-          className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/80 px-2 py-1.5 shadow-lg"
+          className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/80 px-2 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] shadow-lg"
         >
-          <div className={`grid gap-1 ${isAdmin ? "grid-cols-4" : "grid-cols-3"}`}>
+          <div className="grid gap-1 grid-cols-4">
             {navItems.map((item) => {
               const isActive = activeTab === item.id;
               return (

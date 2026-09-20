@@ -350,14 +350,10 @@ describe("DashboardPage start collection workflow characterization", () => {
 
     render(<DashboardPage />);
 
-    expect(await screen.findByRole("heading", { name: "Start New Collection" })).toBeTruthy();
-    expect(
-      screen.getByText(
-        "Your previous collection is completed. Start a new session with an available receipt book."
-      )
-    ).toBeTruthy();
+    expect(await screen.findByRole("button", { name: /संकलन सुरू करा|Start/i })).toBeTruthy();
+    expect(screen.getByText("BOOK-01")).toBeTruthy();
 
-    const eventSelect = (await screen.findByLabelText("Event")) as HTMLSelectElement;
+    const eventSelect = (await screen.findByLabelText(/Event|उत्सव/)) as HTMLSelectElement;
     await waitFor(() => {
       expect(eventSelect.value).toBe("event-1");
     });

@@ -12,21 +12,24 @@ import {
   type BuildingRecord,
   type PropertyRecord,
 } from "../services/master-data.service";
+import { ReceiptBooksManagementPanel } from "./receipt-books-management-panel";
 
 export interface BuildingsManagementPanelProps {
   organizationId: string;
-  initialSubTab?: "buildings" | "shops";
+  eventId?: string | null;
+  initialSubTab?: "buildings" | "shops" | "books";
   onStartCollection?: (building: BuildingRecord, flat?: PropertyRecord) => void;
   onStartGeneralReceipt?: () => void;
 }
 
 export function BuildingsManagementPanel({
   organizationId,
+  eventId,
   initialSubTab = "buildings",
   onStartCollection,
   onStartGeneralReceipt,
 }: BuildingsManagementPanelProps) {
-  const [subTab, setSubTab] = useState<"buildings" | "shops">(initialSubTab);
+  const [subTab, setSubTab] = useState<"buildings" | "shops" | "books">(initialSubTab);
 
   // Buildings & Flats state
   const [buildings, setBuildings] = useState<BuildingRecord[]>([]);
@@ -247,9 +250,10 @@ export function BuildingsManagementPanel({
           1. TOP NAVIGATION & GENERAL AD HOC RECEIPT ACTION
       -------------------------------------------------------------- */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
+            data-testid="subtab-buildings"
             onClick={() => {
               setSubTab("buildings");
               setSelectedBuilding(null);
@@ -264,6 +268,7 @@ export function BuildingsManagementPanel({
           </button>
           <button
             type="button"
+            data-testid="subtab-shops"
             onClick={() => {
               setSubTab("shops");
               setSelectedBuilding(null);
@@ -275,6 +280,21 @@ export function BuildingsManagementPanel({
             }`}
           >
             🏪 Commercial Shops (दुकाने)
+          </button>
+          <button
+            type="button"
+            data-testid="subtab-books"
+            onClick={() => {
+              setSubTab("books");
+              setSelectedBuilding(null);
+            }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              subTab === "books"
+                ? "bg-slate-900 text-white shadow-xs"
+                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+            }`}
+          >
+            📚 Receipt Books (पावती पुस्तके)
           </button>
         </div>
 
@@ -555,26 +575,28 @@ export function BuildingsManagementPanel({
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2 pt-1 border-t">
+                        <div className="grid grid-cols-2 gap-2 pt-2 border-t">
                           <Button
                             type="button"
                             variant="outline"
                             size="sm"
                             onClick={() => void loadFlats(bld)}
-                            className="flex-1 h-8 text-xs font-bold border-slate-200 hover:bg-slate-50"
+                            className="w-full h-9 text-xs font-bold border-slate-200 hover:bg-slate-50 rounded-xl cursor-pointer"
                           >
                             View Flats →
                           </Button>
 
-                          {onStartCollection && (
+                          {onStartCollection ? (
                             <Button
                               type="button"
                               size="sm"
                               onClick={() => onStartCollection(bld)}
-                              className="flex-1 h-8 text-xs font-bold bg-orange-600 hover:bg-orange-700 text-white"
+                              className="w-full h-9 text-xs font-bold bg-orange-600 hover:bg-orange-700 text-white rounded-xl shadow-xs cursor-pointer"
                             >
                               ⚡ Collect
                             </Button>
+                          ) : (
+                            <div />
                           )}
                         </div>
                       </div>
@@ -641,6 +663,18 @@ export function BuildingsManagementPanel({
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* -------------------------------------------------------------
+          4. RECEIPT BOOKS VIEW (SECRETARY/ADMIN)
+      -------------------------------------------------------------- */}
+      {subTab === "books" && (
+        <div className="animate-in fade-in" data-testid="receipt-books-view">
+          <ReceiptBooksManagementPanel
+            organizationId={organizationId}
+            eventId={eventId}
+          />
         </div>
       )}
 

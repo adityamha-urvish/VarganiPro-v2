@@ -179,6 +179,10 @@ describe("Phase 2I: End-to-End Acceptance QA Test Suite", () => {
 
     render(<DashboardPage />);
 
+    // Navigate to Buildings / Collection from Volunteer Home
+    const collectBtn = await screen.findByTestId("volunteer-collect-btn");
+    fireEvent.click(collectBtn);
+
     await waitFor(
       () => {
         expect(screen.getByText(/Continue Shivaji Heights/i)).toBeTruthy();
@@ -328,6 +332,10 @@ describe("Phase 2I: End-to-End Acceptance QA Test Suite", () => {
 
     render(<DashboardPage />);
 
+    // Navigate to Buildings / Collection from Volunteer Home
+    const collectBtn = await screen.findByTestId("volunteer-collect-btn");
+    fireEvent.click(collectBtn);
+
     await waitFor(
       () => {
         expect(screen.getByText(/Continue Shivaji Heights/i)).toBeTruthy();
@@ -351,6 +359,10 @@ describe("Phase 2I: End-to-End Acceptance QA Test Suite", () => {
 
   it("QA Step 4: General / Ad Hoc Receipt Test (propertyId remains null, does not increment building coverage)", async () => {
     render(<DashboardPage />);
+
+    // Navigate to Buildings / Collection from Volunteer Home
+    const collectBtn = await screen.findByTestId("volunteer-collect-btn");
+    fireEvent.click(collectBtn);
 
     await waitFor(
       () => {
@@ -458,6 +470,10 @@ describe("Phase 2I: End-to-End Acceptance QA Test Suite", () => {
     fetchBuildingPropertiesProgressMock.mockResolvedValue(existingProperties);
 
     render(<DashboardPage />);
+
+    // Navigate to Buildings / Collection from Volunteer Home
+    const collectBtn = await screen.findByTestId("volunteer-collect-btn");
+    fireEvent.click(collectBtn);
 
     await waitFor(
       () => {
