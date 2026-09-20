@@ -300,7 +300,7 @@ describe("DashboardPage start collection workflow characterization", () => {
     expect(eventSelect.value).toBe("event-1");
 
     expect(await screen.findByText(/BOOK-01/)).toBeTruthy();
-    expect(screen.getByText(/Ganesh Utsav 2026 \(GU26\)/)).toBeTruthy();
+    expect(screen.getAllByText(/Ganesh Utsav 2026 \(GU26\)/).length).toBeGreaterThan(0);
   });
 
   it("loads available receipt books when a different event is selected in Start Collection", async () => {
@@ -363,8 +363,11 @@ describe("DashboardPage start collection workflow characterization", () => {
 
     render(<DashboardPage />);
 
-    expect(await screen.findByRole("button", { name: /संकलन सुरू करा|Start/i })).toBeTruthy();
+    const startBtns = await screen.findAllByRole("button", { name: /संकलन सुरू करा|Start/i });
+    expect(startBtns.length).toBeGreaterThan(0);
     expect(screen.getByText("BOOK-01")).toBeTruthy();
+
+    fireEvent.click(startBtns[0]);
 
     const eventSelect = (await screen.findByLabelText(/Event|उत्सव/)) as HTMLSelectElement;
     await waitFor(() => {

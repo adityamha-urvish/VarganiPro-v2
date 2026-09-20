@@ -19,6 +19,8 @@ import { SessionSummaryCard } from "../components/session-summary-card";
 import { StartCollectionCard } from "../components/start-collection-card";
 import { VolunteerHandoverCard } from "../components/volunteer-handover-card";
 import { VolunteerHome } from "../components/volunteer-home";
+import { MandalHomeScreen } from "../components/mandal-home-screen";
+import { BuildingsCollectionScreen } from "../components/buildings-collection-screen";
 import { RoleNavigation, type NavigationTab } from "@/app/layouts/RoleNavigation";
 import { VolunteerManagementPanel } from "@/features/admin/volunteers/components/volunteer-management-panel";
 import { BuildingsManagementPanel } from "@/features/admin/master-data/components/buildings-management-panel";
@@ -41,6 +43,7 @@ import { calculateReceiptAggregates } from "../utils/receipt-aggregates";
 
 export function DashboardPage() {
   const [activeTab, setActiveTab] = useState<NavigationTab>("collection");
+  const [collectionMode, setCollectionMode] = useState(false);
   const [volunteerSubView, setVolunteerSubView] = useState<"home" | "buildings" | "history" | "handover" | "session">("home");
   const [receiptToView, setReceiptToView] =
     useState<LocalReceipt | null>(null);
@@ -251,6 +254,7 @@ export function DashboardPage() {
       await ensureOfflineBookState(newSession);
       await loadReceiptHistory(newSession.receiptBookId);
       setHandover(null);
+      setCollectionMode(true);
     },
   });
 
@@ -335,163 +339,313 @@ export function DashboardPage() {
       -------------------------------------------------------------- */}
       {activeTab === "collection" && (
         <div className="space-y-6 animate-in fade-in">
-          {/* ADMIN VIEW */}
-          {isAdmin && (
+          {/* SHARED MANDAL HOME SCREEN (WHEN NOT IN ACTIVE FIELD COLLECTION WORKSPACE) */}
+          {!collectionMode && (
             <>
-              <SecretaryCommandCenter
-                metrics={secretaryMetrics}
-                ledger={secretaryLedger}
-                buildings={buildings}
-                recentReceipts={receipts}
+              <MandalHomeScreen
+                userName={isAdmin ? "Mandal Secretary" : "Volunteer"}
+                mandalName="श्री गणेश मित्र मंडळ"
+                eventName={availableEvents.find((e) => e.id === effectiveEventId)?.name || "Ganesh Utsav 2026"}
+                eventCode={availableEvents.find((e) => e.id === effectiveEventId)?.code || "GU-26"}
+                eventDates="10 Sep – 20 Sep 2026"
+                eventProgressPct={secretaryMetrics?.property_progress?.completion_percentage ?? 68}
+                sessionBookNumber={session?.bookNumber}
+                sessionReceiptNumber={session ? `${session.prefix || "VP-"}${session.currentNumber}` : undefined}
+                sessionStatus={session?.sessionStatus}
+                totalAmount={totalAmount || secretaryMetrics?.today?.total_amount || 0}
+                cashAmount={cashAmount || secretaryMetrics?.today?.cash_amount || 0}
+                upiAmount={upiAmount || secretaryMetrics?.today?.upi_amount || 0}
+                receiptCount={issuedReceipts.length || secretaryMetrics?.today?.receipt_count || 0}
+                isLive={true}
+                isAdmin={isAdmin}
+                hasActiveSession={Boolean(session && session.sessionStatus === "open")}
                 pendingSyncCount={pendingReceipts.length}
-                loading={secretaryAnalyticsLoading}
-                ledgerLoading={secretaryLedgerLoading}
-                error={secretaryAnalyticsError}
-                ledgerError={secretaryLedgerError}
-                onRefresh={() => {
-                  void refreshAll();
-                  void loadBuildings();
+                onStartCollection={() => {
+                  setCollectionMode(true);
+                  if (session && session.sessionStatus === "open" && !selectedBuilding) {
+                    setVolunteerSubView("buildings");
+                  } else {
+                    setVolunteerSubView("home");
+                  }
                 }}
-                onNavigateTab={(tab) => setActiveTab(tab)}
-                onViewReceipt={(receipt) => setReceiptToView(receipt)}
-                onSync={() => void handleSyncNextReceipt()}
+                onNavigateTab={(tab) => {
+                  setActiveTab(tab);
+                  if (tab === "collection") {
+                    setCollectionMode(false);
+                    setVolunteerSubView("home");
+                  }
+                }}
+                onNavigateToHistory={() => setActiveTab("history")}
+                onNavigateToHandover={() => setActiveTab("handovers")}
+                onNavigateToSessionDetails={() => {
+                  setCollectionMode(true);
+                  setVolunteerSubView("session");
+                }}
+                onChangeBuilding={() => {
+                  setActiveTab("masterData");
+                }}
               />
 
-              <AdminHandoverPanel
-                handovers={adminHandovers}
-                loading={adminHandoverLoading}
-                error={adminHandoverError}
-                actionLoadingId={adminActionLoading}
-                onRefresh={() => {
-                  void loadAdminHandovers();
-                  void refreshLedger();
-                }}
-                onVerifyHandover={(id) => void handleVerifyHandover(id)}
-                onRejectHandover={(id, reason) =>
-                  void handleRejectHandover(id, reason)
-                }
-              />
+              {/* ADMIN OVERVIEW PANELS (FOR INSTANT COMMAND ACCESS) */}
+              {isAdmin && (
+                <div className="space-y-6 pt-2">
+                  <AdminHandoverPanel
+                    handovers={adminHandovers}
+                    loading={adminHandoverLoading}
+                    error={adminHandoverError}
+                    actionLoadingId={adminActionLoading}
+                    onRefresh={() => {
+                      void loadAdminHandovers();
+                      void refreshLedger();
+                    }}
+                    onVerifyHandover={(id) => void handleVerifyHandover(id)}
+                    onRejectHandover={(id, reason) =>
+                      void handleRejectHandover(id, reason)
+                    }
+                  />
 
-              {!session && (
-                <StartCollectionCard
-                  idPrefix="admin-start"
-                  events={availableEvents}
-                  books={availableBooks}
-                  selectedEventId={selectedEventId}
-                  selectedBookId={selectedBookId}
-                  loading={startSessionLoading}
-                  error={startSessionError}
-                  onEventChange={(value) => {
-                    setSelectedEventId(value);
-                    void loadAvailableBooks(value);
-                  }}
-                  onBookChange={(value) => setSelectedBookId(value)}
-                  onStartCollection={() => void handleStartCollectionSession()}
-                />
+                  {!session && (
+                    <StartCollectionCard
+                      idPrefix="admin-start"
+                      events={availableEvents}
+                      books={availableBooks}
+                      selectedEventId={selectedEventId}
+                      selectedBookId={selectedBookId}
+                      loading={startSessionLoading}
+                      error={startSessionError}
+                      onEventChange={(value) => {
+                        setSelectedEventId(value);
+                        void loadAvailableBooks(value);
+                      }}
+                      onBookChange={(value) => setSelectedBookId(value)}
+                      onStartCollection={() => void handleStartCollectionSession()}
+                    />
+                  )}
+                </div>
               )}
             </>
           )}
 
-          {/* VOLUNTEER FIELD VIEW */}
-          {!isAdmin && (
+          {/* FOCUSED COLLECTION MODE WORKSPACE */}
+          {collectionMode && (
             <>
-              {/* SUBVIEW: HOME (FOCUSED ZERO-SCROLL VOLUNTEER WORKSPACE) */}
-              {volunteerSubView === "home" && !selectedBuilding && (
-                <VolunteerHome
-                  session={session}
-                  selectedBuilding={selectedBuilding}
-                  todayAmount={totalAmount}
-                  receiptCount={issuedReceipts.length}
-                  houseCount={0}
-                  pendingSyncCount={pendingReceipts.length}
-                  isOnline={true}
-                  onOpenCollect={() => {
-                    if (selectedBuilding) {
-                      setIsFastReceiptOpen(true);
-                    } else {
-                      setVolunteerSubView("buildings");
-                    }
-                  }}
-                  onChangeBuilding={() => setVolunteerSubView("buildings")}
-                  onNavigateToHistory={() => setVolunteerSubView("history")}
-                  onNavigateToHandover={() => setVolunteerSubView("handover")}
-                  onNavigateToSessionDetails={() => setVolunteerSubView("session")}
-                  onStartCollection={() => void handleStartCollectionSession()}
-                  events={availableEvents}
-                  books={availableBooks}
-                  selectedEventId={selectedEventId}
-                  selectedBookId={selectedBookId}
-                  onEventChange={(value) => {
-                    setSelectedEventId(value);
-                    void loadAvailableBooks(value);
-                  }}
-                  onBookChange={(value) => setSelectedBookId(value)}
-                  startSessionLoading={startSessionLoading}
-                  startSessionError={startSessionError}
-                />
-              )}
-
-              {/* SUBVIEW: BUILDINGS & CORRIDOR */}
-              {(volunteerSubView === "buildings" || (volunteerSubView === "home" && selectedBuilding)) && (
-                <div className="space-y-4 animate-in fade-in">
+              {/* ADMIN IN ACTIVE COLLECTION MODE */}
+              {isAdmin && (
+                <div className="space-y-6 animate-in fade-in">
                   <div className="flex items-center justify-between pb-2 border-b">
                     <button
                       type="button"
-                      data-testid="volunteer-back-home"
-                      onClick={() => {
-                        setVolunteerSubView("home");
-                        setSelectedBuilding(null);
-                      }}
+                      data-testid="admin-back-dashboard"
+                      onClick={() => setCollectionMode(false)}
                       className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-slate-950 bg-white border border-slate-200/80 px-3 py-1.5 rounded-xl shadow-2xs cursor-pointer"
                     >
                       <span>←</span>
-                      <span>मुख्य पृष्ठ (Home)</span>
+                      <span>Dashboard (मुख्य पृष्ठ)</span>
                     </button>
-                    {selectedBuilding && (
-                      <span className="text-xs font-black text-slate-900 truncate max-w-[200px]">
-                        🏢 {selectedBuilding.buildingName}
-                      </span>
-                    )}
+                    <span className="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-md">
+                      👑 Secretary Command Mode
+                    </span>
                   </div>
 
-                  {!selectedBuilding ? (
-                    <>
-                      <ContinueCollectionCard
-                        buildings={buildings}
-                        loading={loadingBuildings}
-                        onSelectBuilding={(b) => void selectBuilding(b)}
-                        onRefresh={() => void loadBuildings()}
-                      />
+                  <SecretaryCommandCenter
+                    metrics={secretaryMetrics}
+                    ledger={secretaryLedger}
+                    buildings={buildings}
+                    recentReceipts={receipts}
+                    pendingSyncCount={pendingReceipts.length}
+                    loading={secretaryAnalyticsLoading}
+                    ledgerLoading={secretaryLedgerLoading}
+                    error={secretaryAnalyticsError}
+                    ledgerError={secretaryLedgerError}
+                    onRefresh={() => {
+                      void refreshAll();
+                      void loadBuildings();
+                    }}
+                    onNavigateTab={(tab) => setActiveTab(tab)}
+                    onViewReceipt={(receipt) => setReceiptToView(receipt)}
+                    onSync={() => void handleSyncNextReceipt()}
+                  />
 
-                      {session && (
-                        <ReceiptCreationForm
-                          propertyId={propertyId}
-                          properties={properties}
-                          donorName={donorName}
-                          donorMobile={donorMobile}
-                          amount={amount}
-                          paymentMode={paymentMode}
-                          paymentReference={paymentReference}
-                          notes={notes}
-                          creating={creating}
-                          createError={createError}
-                          sessionStatus={session.sessionStatus}
-                          currentReceiptNumber={session.currentNumber}
-                          startNumber={session.startNumber}
-                          endNumber={session.endNumber}
-                          onNavigateToCloseSession={() => {
-                            setVolunteerSubView("session");
+                  <AdminHandoverPanel
+                    handovers={adminHandovers}
+                    loading={adminHandoverLoading}
+                    error={adminHandoverError}
+                    actionLoadingId={adminActionLoading}
+                    onRefresh={() => {
+                      void loadAdminHandovers();
+                      void refreshLedger();
+                    }}
+                    onVerifyHandover={(id) => void handleVerifyHandover(id)}
+                    onRejectHandover={(id, reason) =>
+                      void handleRejectHandover(id, reason)
+                    }
+                  />
+
+                  {!session && (
+                    <StartCollectionCard
+                      idPrefix="admin-start"
+                      events={availableEvents}
+                      books={availableBooks}
+                      selectedEventId={selectedEventId}
+                      selectedBookId={selectedBookId}
+                      loading={startSessionLoading}
+                      error={startSessionError}
+                      onEventChange={(value) => {
+                        setSelectedEventId(value);
+                        void loadAvailableBooks(value);
+                      }}
+                      onBookChange={(value) => setSelectedBookId(value)}
+                      onStartCollection={() => void handleStartCollectionSession()}
+                    />
+                  )}
+                </div>
+              )}
+
+              {/* VOLUNTEER FIELD VIEW */}
+              {!isAdmin && (
+                <>
+                  {/* SUBVIEW: HOME (FOCUSED ZERO-SCROLL VOLUNTEER WORKSPACE) */}
+                  {volunteerSubView === "home" && !selectedBuilding && (
+                    <VolunteerHome
+                      session={session}
+                      selectedBuilding={selectedBuilding}
+                      todayAmount={totalAmount}
+                      receiptCount={issuedReceipts.length}
+                      houseCount={0}
+                      pendingSyncCount={pendingReceipts.length}
+                      isOnline={true}
+                      onBackToHome={() => setCollectionMode(false)}
+                      onOpenCollect={() => {
+                        if (selectedBuilding) {
+                          setIsFastReceiptOpen(true);
+                        } else {
+                          setVolunteerSubView("buildings");
+                        }
+                      }}
+                      onChangeBuilding={() => setVolunteerSubView("buildings")}
+                      onNavigateToHistory={() => setVolunteerSubView("history")}
+                      onNavigateToHandover={() => setVolunteerSubView("handover")}
+                      onNavigateToSessionDetails={() => setVolunteerSubView("session")}
+                      onStartCollection={() => void handleStartCollectionSession()}
+                      events={availableEvents}
+                      books={availableBooks}
+                      selectedEventId={selectedEventId}
+                      selectedBookId={selectedBookId}
+                      onEventChange={(value) => {
+                        setSelectedEventId(value);
+                        void loadAvailableBooks(value);
+                      }}
+                      onBookChange={(value) => setSelectedBookId(value)}
+                      startSessionLoading={startSessionLoading}
+                      startSessionError={startSessionError}
+                    />
+                  )}
+
+                  {/* SUBVIEW: BUILDINGS & CORRIDOR */}
+                  {(volunteerSubView === "buildings" || (volunteerSubView === "home" && selectedBuilding)) && (
+                    <div className="space-y-4 animate-in fade-in">
+                      <div className="flex items-center justify-between pb-2 border-b">
+                        <button
+                          type="button"
+                          data-testid="volunteer-back-home"
+                          onClick={() => {
+                            setVolunteerSubView("home");
+                            setSelectedBuilding(null);
                           }}
-                          onPropertyIdChange={setPropertyId}
-                          onDonorNameChange={setDonorName}
-                          onDonorMobileChange={setDonorMobile}
-                          onAmountChange={setAmount}
-                          onPaymentModeChange={setPaymentMode}
-                          onPaymentReferenceChange={setPaymentReference}
-                          onNotesChange={setNotes}
-                          onSubmit={handleCreateReceipt}
+                          className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-slate-950 bg-white border border-slate-200/80 px-3 py-1.5 rounded-xl shadow-2xs cursor-pointer"
+                        >
+                          <span>←</span>
+                          <span>मुख्य पृष्ठ (Home)</span>
+                        </button>
+                        {selectedBuilding && (
+                          <span className="text-xs font-black text-slate-900 truncate max-w-[200px]">
+                            🏢 {selectedBuilding.buildingName}
+                          </span>
+                        )}
+                      </div>
+
+                      {!selectedBuilding ? (
+                        <>
+                          <ContinueCollectionCard
+                            buildings={buildings}
+                            loading={loadingBuildings}
+                            hasActiveSession={Boolean(session && session.sessionStatus === "open")}
+                            onSelectBuilding={(b) => void selectBuilding(b)}
+                            onRefresh={() => void loadBuildings()}
+                            onStartSession={() => {
+                              setVolunteerSubView("home");
+                            }}
+                          />
+
+                          {session && (
+                            <ReceiptCreationForm
+                              propertyId={propertyId}
+                              properties={properties}
+                              donorName={donorName}
+                              donorMobile={donorMobile}
+                              amount={amount}
+                              paymentMode={paymentMode}
+                              paymentReference={paymentReference}
+                              notes={notes}
+                              creating={creating}
+                              createError={createError}
+                              sessionStatus={session.sessionStatus}
+                              currentReceiptNumber={session.currentNumber}
+                              startNumber={session.startNumber}
+                              endNumber={session.endNumber}
+                              onNavigateToCloseSession={() => {
+                                setVolunteerSubView("session");
+                              }}
+                              onPropertyIdChange={setPropertyId}
+                              onDonorNameChange={setDonorName}
+                              onDonorMobileChange={setDonorMobile}
+                              onAmountChange={setAmount}
+                              onPaymentModeChange={setPaymentMode}
+                              onPaymentReferenceChange={setPaymentReference}
+                              onNotesChange={setNotes}
+                              onSubmit={handleCreateReceipt}
+                            />
+                          )}
+
+                          <LastCreatedReceiptCard
+                            receipt={createdReceipt}
+                            onViewReceipt={(receipt) => setReceiptToView(receipt)}
+                            onPrintReceipt={(receipt) => handlePrintReceipt(receipt)}
+                          />
+
+                          {syncMessage && (
+                            <div className="rounded-lg border bg-muted/40 p-4">
+                              <p className="text-sm">{syncMessage}</p>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <BuildingFlatGrid
+                          building={selectedBuilding}
+                          properties={properties}
+                          loading={loadingProperties}
+                          onBack={() => setSelectedBuilding(null)}
+                          onSelectProperty={openPropertyReceipt}
+                          onStartNextFlat={startNextFlat}
+                          onAddProperty={addPropertyDirect}
                         />
                       )}
+                    </div>
+                  )}
+
+                  {/* SUBVIEW: HISTORY */}
+                  {volunteerSubView === "history" && (
+                    <div className="space-y-4 animate-in fade-in">
+                      <div className="pb-2 border-b">
+                        <button
+                          type="button"
+                          onClick={() => setVolunteerSubView("home")}
+                          className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-slate-950 bg-white border border-slate-200/80 px-3 py-1.5 rounded-xl shadow-2xs cursor-pointer"
+                        >
+                          <span>←</span>
+                          <span>मुख्य पृष्ठ (Home)</span>
+                        </button>
+                      </div>
 
                       <LastCreatedReceiptCard
                         receipt={createdReceipt}
@@ -499,140 +653,197 @@ export function DashboardPage() {
                         onPrintReceipt={(receipt) => handlePrintReceipt(receipt)}
                       />
 
-                      {syncMessage && (
-                        <div className="rounded-lg border bg-muted/40 p-4">
-                          <p className="text-sm">{syncMessage}</p>
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <BuildingFlatGrid
-                      building={selectedBuilding}
-                      properties={properties}
-                      loading={loadingProperties}
-                      onBack={() => setSelectedBuilding(null)}
-                      onSelectProperty={openPropertyReceipt}
-                      onStartNextFlat={startNextFlat}
-                      onAddProperty={addPropertyDirect}
-                    />
+                      <ReceiptHistoryPanel
+                        receipts={receipts}
+                        receiptPrefix={session?.prefix || "VP-"}
+                        sessionStatus={session?.sessionStatus || "open"}
+                        loading={historyLoading}
+                        onRefresh={() => {
+                          if (session?.receiptBookId) {
+                            void loadReceiptHistory(session.receiptBookId);
+                          }
+                        }}
+                        onSyncNext={() => void handleSyncNextReceipt()}
+                        onViewReceipt={(receipt) => setReceiptToView(receipt)}
+                        onPrintReceipt={(receipt) => handlePrintReceipt(receipt)}
+                      />
+                    </div>
                   )}
-                </div>
-              )}
 
-              {/* SUBVIEW: HISTORY */}
-              {volunteerSubView === "history" && (
-                <div className="space-y-4 animate-in fade-in">
-                  <div className="pb-2 border-b">
-                    <button
-                      type="button"
-                      onClick={() => setVolunteerSubView("home")}
-                      className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-slate-950 bg-white border border-slate-200/80 px-3 py-1.5 rounded-xl shadow-2xs cursor-pointer"
-                    >
-                      <span>←</span>
-                      <span>मुख्य पृष्ठ (Home)</span>
-                    </button>
-                  </div>
-
-                  <LastCreatedReceiptCard
-                    receipt={createdReceipt}
-                    onViewReceipt={(receipt) => setReceiptToView(receipt)}
-                    onPrintReceipt={(receipt) => handlePrintReceipt(receipt)}
-                  />
-
-                  <ReceiptHistoryPanel
-                    receipts={receipts}
-                    receiptPrefix={session?.prefix || "VP-"}
-                    sessionStatus={session?.sessionStatus || "open"}
-                    loading={historyLoading}
-                    onRefresh={() => {
-                      if (session?.receiptBookId) {
-                        void loadReceiptHistory(session.receiptBookId);
-                      }
-                    }}
-                    onSyncNext={() => void handleSyncNextReceipt()}
-                    onViewReceipt={(receipt) => setReceiptToView(receipt)}
-                    onPrintReceipt={(receipt) => handlePrintReceipt(receipt)}
-                  />
-                </div>
-              )}
-
-              {/* SUBVIEW: HANDOVER */}
-              {volunteerSubView === "handover" && (
-                <div className="space-y-4 animate-in fade-in">
-                  <div className="pb-2 border-b">
-                    <button
-                      type="button"
-                      onClick={() => setVolunteerSubView("home")}
-                      className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-slate-950 bg-white border border-slate-200/80 px-3 py-1.5 rounded-xl shadow-2xs cursor-pointer"
-                    >
-                      <span>←</span>
-                      <span>मुख्य पृष्ठ (Home)</span>
-                    </button>
-                  </div>
-
-                  {session && session.sessionStatus === "completed" ? (
-                    <VolunteerHandoverCard
-                      handover={handover}
-                      creatingHandover={creatingHandover}
-                      submittingHandover={submittingHandover}
-                      actualCashAmount={actualCashAmount}
-                      actualChequeAmount={actualChequeAmount}
-                      authorizedExpenseAmount={authorizedExpenseAmount}
-                      authorizedExpenseNote={authorizedExpenseNote}
-                      discrepancyReason={discrepancyReason}
-                      handoverNotes={handoverNotes}
-                      handoverError={handoverError}
-                      handoverMessage={handoverMessage}
-                      unsyncedCount={pendingReceipts.length}
-                      onCreateHandover={() => void handleCreateHandover()}
-                      onSubmitHandover={() => void handleSubmitHandover()}
-                      onActualCashAmountChange={setActualCashAmount}
-                      onActualChequeAmountChange={setActualChequeAmount}
-                      onAuthorizedExpenseAmountChange={setAuthorizedExpenseAmount}
-                      onAuthorizedExpenseNoteChange={setAuthorizedExpenseNote}
-                      onDiscrepancyReasonChange={setDiscrepancyReason}
-                      onHandoverNotesChange={setHandoverNotes}
-                    />
-                  ) : (
-                    <div className="rounded-2xl border bg-white p-6 text-center space-y-3 shadow-xs">
-                      <span className="text-4xl block">🤝</span>
-                      <h3 className="text-base font-bold text-slate-900 font-brand-marathi">
-                        सत्र हस्तांतरण · Handover
-                      </h3>
-                      <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                        {session
-                          ? "तुमचे सध्याचे संकलन सत्र चालू आहे. संकलन पूर्ण झाल्यावर सत्र समाप्त करून रोख रक्कम जमा करा."
-                          : "कोणतेही पूर्ण झालेले सत्र सापडले नाही."}
-                      </p>
-                      {session && session.sessionStatus === "open" && (
+                  {/* SUBVIEW: HANDOVER */}
+                  {volunteerSubView === "handover" && (
+                    <div className="space-y-4 animate-in fade-in">
+                      <div className="pb-2 border-b">
                         <button
                           type="button"
-                          onClick={() => setVolunteerSubView("session")}
-                          className="inline-flex items-center gap-1 text-xs font-bold text-orange-600 hover:underline cursor-pointer pt-1"
+                          onClick={() => setVolunteerSubView("home")}
+                          className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-slate-950 bg-white border border-slate-200/80 px-3 py-1.5 rounded-xl shadow-2xs cursor-pointer"
                         >
-                          <span>⚙️ सत्र तपशील आणि बंद करा</span>
-                          <span>→</span>
+                          <span>←</span>
+                          <span>मुख्य पृष्ठ (Home)</span>
                         </button>
+                      </div>
+
+                      {session && session.sessionStatus === "completed" ? (
+                        <VolunteerHandoverCard
+                          handover={handover}
+                          creatingHandover={creatingHandover}
+                          submittingHandover={submittingHandover}
+                          actualCashAmount={actualCashAmount}
+                          actualChequeAmount={actualChequeAmount}
+                          authorizedExpenseAmount={authorizedExpenseAmount}
+                          authorizedExpenseNote={authorizedExpenseNote}
+                          discrepancyReason={discrepancyReason}
+                          handoverNotes={handoverNotes}
+                          handoverError={handoverError}
+                          handoverMessage={handoverMessage}
+                          unsyncedCount={pendingReceipts.length}
+                          onCreateHandover={() => void handleCreateHandover()}
+                          onSubmitHandover={() => void handleSubmitHandover()}
+                          onActualCashAmountChange={setActualCashAmount}
+                          onActualChequeAmountChange={setActualChequeAmount}
+                          onAuthorizedExpenseAmountChange={setAuthorizedExpenseAmount}
+                          onAuthorizedExpenseNoteChange={setAuthorizedExpenseNote}
+                          onDiscrepancyReasonChange={setDiscrepancyReason}
+                          onHandoverNotesChange={setHandoverNotes}
+                        />
+                      ) : (
+                        <div className="rounded-2xl border bg-white p-6 text-center space-y-3 shadow-xs">
+                          <span className="text-4xl block">🤝</span>
+                          <h3 className="text-base font-bold text-slate-900 font-brand-marathi">
+                            सत्र हस्तांतरण · Handover
+                          </h3>
+                          <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                            {session
+                              ? "तुमचे सध्याचे संकलन सत्र चालू आहे. संकलन पूर्ण झाल्यावर सत्र समाप्त करून रोख रक्कम जमा करा."
+                              : "कोणतेही पूर्ण झालेले सत्र सापडले नाही."}
+                          </p>
+                          {session && session.sessionStatus === "open" && (
+                            <button
+                              type="button"
+                              onClick={() => setVolunteerSubView("session")}
+                              className="inline-flex items-center gap-1 text-xs font-bold text-orange-600 hover:underline cursor-pointer pt-1"
+                            >
+                              <span>⚙️ सत्र तपशील आणि बंद करा</span>
+                              <span>→</span>
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
                   )}
-                </div>
+
+                  {/* SUBVIEW: SESSION DETAILS & CLOSE */}
+                  {volunteerSubView === "session" && session && (
+                    <div className="space-y-4 animate-in fade-in">
+                      <div className="pb-2 border-b">
+                        <button
+                          type="button"
+                          onClick={() => setVolunteerSubView("home")}
+                          className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-slate-950 bg-white border border-slate-200/80 px-3 py-1.5 rounded-xl shadow-2xs cursor-pointer"
+                        >
+                          <span>←</span>
+                          <span>मुख्य पृष्ठ (Home)</span>
+                        </button>
+                      </div>
+
+                      <SessionSummaryCard
+                        session={session}
+                        receiptCount={issuedReceipts.length}
+                        totalAmount={totalAmount}
+                        pendingCount={pendingReceipts.length}
+                        conflictCount={conflictReceipts.length}
+                        cashAmount={cashAmount}
+                        upiAmount={upiAmount}
+                        chequeAmount={chequeAmount}
+                        bankTransferAmount={bankTransferAmount}
+                        closingSession={closingSession}
+                        sessionCloseError={sessionCloseError}
+                        sessionCloseMessage={sessionCloseMessage}
+                        onCloseSession={() => void handleCloseSession()}
+                      />
+
+                      {session.sessionStatus === "completed" && (
+                        <StartCollectionCard
+                          title="Start New Collection"
+                          description="Your previous collection is completed. Start a new session with an available receipt book."
+                          idPrefix="next"
+                          events={availableEvents}
+                          books={availableBooks}
+                          selectedEventId={selectedEventId}
+                          selectedBookId={selectedBookId}
+                          loading={startSessionLoading}
+                          error={startSessionError}
+                          onEventChange={(value) => {
+                            setSelectedEventId(value);
+                            void loadAvailableBooks(value);
+                          }}
+                          onBookChange={(value) => setSelectedBookId(value)}
+                          onStartCollection={() => void handleStartCollectionSession()}
+                        />
+                      )}
+
+                      <ReceiptCreationForm
+                        propertyId={propertyId}
+                        properties={properties}
+                        donorName={donorName}
+                        donorMobile={donorMobile}
+                        amount={amount}
+                        paymentMode={paymentMode}
+                        paymentReference={paymentReference}
+                        notes={notes}
+                        creating={creating}
+                        createError={createError}
+                        sessionStatus={session.sessionStatus}
+                        currentReceiptNumber={session.currentNumber}
+                        startNumber={session.startNumber}
+                        endNumber={session.endNumber}
+                        onNavigateToCloseSession={() => {
+                          setVolunteerSubView("session");
+                        }}
+                        onPropertyIdChange={setPropertyId}
+                        onDonorNameChange={setDonorName}
+                        onDonorMobileChange={setDonorMobile}
+                        onAmountChange={setAmount}
+                        onPaymentModeChange={setPaymentMode}
+                        onPaymentReferenceChange={setPaymentReference}
+                        onNotesChange={setNotes}
+                        onSubmit={handleCreateReceipt}
+                      />
+                    </div>
+                  )}
+
+                  {/* MODALS */}
+                  <FastReceiptModal
+                    isOpen={isFastReceiptOpen}
+                    buildingName={selectedBuilding?.buildingName || ""}
+                    property={selectedProperty}
+                    nextProperty={getNextProperty(selectedProperty?.propertyId)}
+                    currentReceiptNumber={session?.currentNumber || 1}
+                    startNumber={session?.startNumber || 1}
+                    endNumber={session?.endNumber || 100}
+                    creating={fastReceiptCreating}
+                    createError={fastReceiptError}
+                    onClose={() => setIsFastReceiptOpen(false)}
+                    onNavigateToCloseSession={() => {
+                      setVolunteerSubView("session");
+                    }}
+                    onSubmitReceipt={submitFastReceipt}
+                    onOpenPendingDrawer={() => setIsPendingDrawerOpen(true)}
+                  />
+
+                  <PendingReasonDrawer
+                    unitNumber={selectedProperty?.unitNumber || ""}
+                    isOpen={isPendingDrawerOpen}
+                    onClose={() => setIsPendingDrawerOpen(false)}
+                    onSubmitReason={(reason, time, notes) => void submitFollowUp(reason, time, notes)}
+                  />
+                </>
               )}
 
-              {/* SUBVIEW: SESSION DETAILS & CLOSE */}
-              {volunteerSubView === "session" && session && (
-                <div className="space-y-4 animate-in fade-in">
-                  <div className="pb-2 border-b">
-                    <button
-                      type="button"
-                      onClick={() => setVolunteerSubView("home")}
-                      className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-slate-950 bg-white border border-slate-200/80 px-3 py-1.5 rounded-xl shadow-2xs cursor-pointer"
-                    >
-                      <span>←</span>
-                      <span>मुख्य पृष्ठ (Home)</span>
-                    </button>
-                  </div>
-
+              {/* ADMIN ACTIVE SESSION WORKFLOW */}
+              {isAdmin && session && (
+                <>
                   <SessionSummaryCard
                     session={session}
                     receiptCount={issuedReceipts.length}
@@ -648,6 +859,54 @@ export function DashboardPage() {
                     sessionCloseMessage={sessionCloseMessage}
                     onCloseSession={() => void handleCloseSession()}
                   />
+
+                  {session.sessionStatus === "open" && (
+                    <>
+                      {!selectedBuilding ? (
+                        <ContinueCollectionCard
+                          buildings={buildings}
+                          loading={loadingBuildings}
+                          onSelectBuilding={(b) => void selectBuilding(b)}
+                          onRefresh={() => void loadBuildings()}
+                        />
+                      ) : (
+                        <BuildingFlatGrid
+                          building={selectedBuilding}
+                          properties={properties}
+                          loading={loadingProperties}
+                          onBack={() => setSelectedBuilding(null)}
+                          onSelectProperty={openPropertyReceipt}
+                          onStartNextFlat={startNextFlat}
+                          onAddProperty={addPropertyDirect}
+                        />
+                      )}
+
+                      <FastReceiptModal
+                        isOpen={isFastReceiptOpen}
+                        buildingName={selectedBuilding?.buildingName || ""}
+                        property={selectedProperty}
+                        nextProperty={getNextProperty(selectedProperty?.propertyId)}
+                        currentReceiptNumber={session.currentNumber}
+                        startNumber={session.startNumber}
+                        endNumber={session.endNumber}
+                        creating={fastReceiptCreating}
+                        createError={fastReceiptError}
+                        onClose={() => setIsFastReceiptOpen(false)}
+                        onNavigateToCloseSession={() => {
+                          setSelectedBuilding(null);
+                        }}
+                        onSubmitReceipt={submitFastReceipt}
+                        onOpenPendingDrawer={() => setIsPendingDrawerOpen(true)}
+                      />
+
+                      <PendingReasonDrawer
+                        unitNumber={selectedProperty?.unitNumber || ""}
+                        isOpen={isPendingDrawerOpen}
+                        onClose={() => setIsPendingDrawerOpen(false)}
+                        onSubmitReason={(reason, time, notes) => void submitFollowUp(reason, time, notes)}
+                      />
+                    </>
+                  )}
 
                   {session.sessionStatus === "completed" && (
                     <StartCollectionCard
@@ -685,7 +944,7 @@ export function DashboardPage() {
                     startNumber={session.startNumber}
                     endNumber={session.endNumber}
                     onNavigateToCloseSession={() => {
-                      setVolunteerSubView("session");
+                      setSelectedBuilding(null);
                     }}
                     onPropertyIdChange={setPropertyId}
                     onDonorNameChange={setDonorName}
@@ -696,162 +955,19 @@ export function DashboardPage() {
                     onNotesChange={setNotes}
                     onSubmit={handleCreateReceipt}
                   />
-                </div>
-              )}
 
-              {/* MODALS */}
-              <FastReceiptModal
-                isOpen={isFastReceiptOpen}
-                buildingName={selectedBuilding?.buildingName || ""}
-                property={selectedProperty}
-                nextProperty={getNextProperty(selectedProperty?.propertyId)}
-                currentReceiptNumber={session?.currentNumber || 1}
-                startNumber={session?.startNumber || 1}
-                endNumber={session?.endNumber || 100}
-                creating={fastReceiptCreating}
-                createError={fastReceiptError}
-                onClose={() => setIsFastReceiptOpen(false)}
-                onNavigateToCloseSession={() => {
-                  setVolunteerSubView("session");
-                }}
-                onSubmitReceipt={submitFastReceipt}
-                onOpenPendingDrawer={() => setIsPendingDrawerOpen(true)}
-              />
-
-              <PendingReasonDrawer
-                unitNumber={selectedProperty?.unitNumber || ""}
-                isOpen={isPendingDrawerOpen}
-                onClose={() => setIsPendingDrawerOpen(false)}
-                onSubmitReason={(reason, time, notes) => void submitFollowUp(reason, time, notes)}
-              />
-            </>
-          )}
-
-          {/* ADMIN SESSION WORKFLOW (IF ADMIN HAS ACTIVE SESSION) */}
-          {isAdmin && session && (
-            <>
-              <SessionSummaryCard
-                session={session}
-                receiptCount={issuedReceipts.length}
-                totalAmount={totalAmount}
-                pendingCount={pendingReceipts.length}
-                conflictCount={conflictReceipts.length}
-                cashAmount={cashAmount}
-                upiAmount={upiAmount}
-                chequeAmount={chequeAmount}
-                bankTransferAmount={bankTransferAmount}
-                closingSession={closingSession}
-                sessionCloseError={sessionCloseError}
-                sessionCloseMessage={sessionCloseMessage}
-                onCloseSession={() => void handleCloseSession()}
-              />
-
-              {session.sessionStatus === "open" && (
-                <>
-                  {!selectedBuilding ? (
-                    <ContinueCollectionCard
-                      buildings={buildings}
-                      loading={loadingBuildings}
-                      onSelectBuilding={(b) => void selectBuilding(b)}
-                      onRefresh={() => void loadBuildings()}
-                    />
-                  ) : (
-                    <BuildingFlatGrid
-                      building={selectedBuilding}
-                      properties={properties}
-                      loading={loadingProperties}
-                      onBack={() => setSelectedBuilding(null)}
-                      onSelectProperty={openPropertyReceipt}
-                      onStartNextFlat={startNextFlat}
-                      onAddProperty={addPropertyDirect}
-                    />
-                  )}
-
-                  <FastReceiptModal
-                    isOpen={isFastReceiptOpen}
-                    buildingName={selectedBuilding?.buildingName || ""}
-                    property={selectedProperty}
-                    nextProperty={getNextProperty(selectedProperty?.propertyId)}
-                    currentReceiptNumber={session.currentNumber}
-                    startNumber={session.startNumber}
-                    endNumber={session.endNumber}
-                    creating={fastReceiptCreating}
-                    createError={fastReceiptError}
-                    onClose={() => setIsFastReceiptOpen(false)}
-                    onNavigateToCloseSession={() => {
-                      setSelectedBuilding(null);
-                    }}
-                    onSubmitReceipt={submitFastReceipt}
-                    onOpenPendingDrawer={() => setIsPendingDrawerOpen(true)}
-                  />
-
-                  <PendingReasonDrawer
-                    unitNumber={selectedProperty?.unitNumber || ""}
-                    isOpen={isPendingDrawerOpen}
-                    onClose={() => setIsPendingDrawerOpen(false)}
-                    onSubmitReason={(reason, time, notes) => void submitFollowUp(reason, time, notes)}
+                  <ReceiptHistoryPanel
+                    receipts={receipts}
+                    receiptPrefix={session.prefix}
+                    sessionStatus={session.sessionStatus}
+                    loading={historyLoading}
+                    onRefresh={() => void loadReceiptHistory(session.receiptBookId)}
+                    onSyncNext={() => void handleSyncNextReceipt()}
+                    onViewReceipt={(receipt) => setReceiptToView(receipt)}
+                    onPrintReceipt={(receipt) => handlePrintReceipt(receipt)}
                   />
                 </>
               )}
-
-              {session.sessionStatus === "completed" && (
-                <StartCollectionCard
-                  title="Start New Collection"
-                  description="Your previous collection is completed. Start a new session with an available receipt book."
-                  idPrefix="next"
-                  events={availableEvents}
-                  books={availableBooks}
-                  selectedEventId={selectedEventId}
-                  selectedBookId={selectedBookId}
-                  loading={startSessionLoading}
-                  error={startSessionError}
-                  onEventChange={(value) => {
-                    setSelectedEventId(value);
-                    void loadAvailableBooks(value);
-                  }}
-                  onBookChange={(value) => setSelectedBookId(value)}
-                  onStartCollection={() => void handleStartCollectionSession()}
-                />
-              )}
-
-              <ReceiptCreationForm
-                propertyId={propertyId}
-                properties={properties}
-                donorName={donorName}
-                donorMobile={donorMobile}
-                amount={amount}
-                paymentMode={paymentMode}
-                paymentReference={paymentReference}
-                notes={notes}
-                creating={creating}
-                createError={createError}
-                sessionStatus={session.sessionStatus}
-                currentReceiptNumber={session.currentNumber}
-                startNumber={session.startNumber}
-                endNumber={session.endNumber}
-                onNavigateToCloseSession={() => {
-                  setSelectedBuilding(null);
-                }}
-                onPropertyIdChange={setPropertyId}
-                onDonorNameChange={setDonorName}
-                onDonorMobileChange={setDonorMobile}
-                onAmountChange={setAmount}
-                onPaymentModeChange={setPaymentMode}
-                onPaymentReferenceChange={setPaymentReference}
-                onNotesChange={setNotes}
-                onSubmit={handleCreateReceipt}
-              />
-
-              <ReceiptHistoryPanel
-                receipts={receipts}
-                receiptPrefix={session.prefix}
-                sessionStatus={session.sessionStatus}
-                loading={historyLoading}
-                onRefresh={() => void loadReceiptHistory(session.receiptBookId)}
-                onSyncNext={() => void handleSyncNextReceipt()}
-                onViewReceipt={(receipt) => setReceiptToView(receipt)}
-                onPrintReceipt={(receipt) => handlePrintReceipt(receipt)}
-              />
             </>
           )}
         </div>
@@ -990,62 +1106,96 @@ export function DashboardPage() {
       {/* -------------------------------------------------------------
           TAB: MASTER DATA (BUILDINGS, FLATS & SHOPS)
       -------------------------------------------------------------- */}
-      {activeTab === "masterData" && organizationId && (
+      {activeTab === "masterData" && (
         <div className="animate-in fade-in">
-          <BuildingsManagementPanel
-            organizationId={organizationId}
-            eventId={effectiveEventId}
-            onStartCollection={(b, p) => {
-              setActiveTab("collection");
-              void selectBuilding({
-                buildingId: b.id,
-                eventId: session?.eventId || "",
-                organizationId,
-                buildingName: b.name,
-                code: b.code || null,
-                wing: b.wing || null,
-                areaName: b.areaName || null,
-                totalUnits: 0,
-                collectedCount: 0,
-                pendingCount: 0,
-                refusedCount: 0,
-                notVisitedCount: 0,
-                remainingCount: 0,
-                totalAmountCollected: 0,
-                lastActivityAt: null,
-                cachedAt: new Date().toISOString(),
-              });
-              if (p) {
-                openPropertyReceipt({
-                  propertyId: p.id,
+          {isAdmin && organizationId ? (
+            <BuildingsManagementPanel
+              organizationId={organizationId}
+              eventId={effectiveEventId}
+              onStartCollection={(b, p) => {
+                setActiveTab("collection");
+                setCollectionMode(true);
+                void selectBuilding({
                   buildingId: b.id,
                   eventId: session?.eventId || "",
                   organizationId,
-                  propertyType: p.propertyType || "flat",
-                  unitNumber: p.unitNumber || p.flatNumber || "",
-                  flatNumber: p.flatNumber || p.unitNumber || "",
-                  floorNumber: p.floorNumber ?? null,
-                  shopName: p.shopName || null,
-                  ownerName: p.ownerName ?? null,
-                  contactMobile: p.contactMobile ?? null,
-                  status: "not_visited",
-                  receiptCount: 0,
-                  totalCollectedAmount: 0,
-                  latestReceiptNumber: null,
-                  lastReceiptAt: null,
-                  pendingReason: null,
-                  followUpTime: null,
-                  followUpNotes: null,
-                  followUpAt: null,
+                  buildingName: b.name,
+                  code: b.code || null,
+                  wing: b.wing || null,
+                  areaName: b.areaName || null,
+                  totalUnits: 0,
+                  collectedCount: 0,
+                  pendingCount: 0,
+                  refusedCount: 0,
+                  notVisitedCount: 0,
+                  remainingCount: 0,
+                  totalAmountCollected: 0,
+                  lastActivityAt: null,
                   cachedAt: new Date().toISOString(),
                 });
-              }
-            }}
-            onStartGeneralReceipt={() => {
-              setActiveTab("collection");
-              setSelectedBuilding(null);
-            }}
-          />
+                if (p) {
+                  openPropertyReceipt({
+                    propertyId: p.id,
+                    buildingId: b.id,
+                    eventId: session?.eventId || "",
+                    organizationId,
+                    propertyType: p.propertyType || "flat",
+                    unitNumber: p.unitNumber || p.flatNumber || "",
+                    flatNumber: p.flatNumber || p.unitNumber || "",
+                    floorNumber: p.floorNumber ?? null,
+                    shopName: p.shopName || null,
+                    ownerName: p.ownerName ?? null,
+                    contactMobile: p.contactMobile ?? null,
+                    status: "not_visited",
+                    receiptCount: 0,
+                    totalCollectedAmount: 0,
+                    latestReceiptNumber: null,
+                    lastReceiptAt: null,
+                    pendingReason: null,
+                    followUpTime: null,
+                    followUpNotes: null,
+                    followUpAt: null,
+                    cachedAt: new Date().toISOString(),
+                  });
+                }
+              }}
+              onStartGeneralReceipt={() => {
+                setActiveTab("collection");
+                setCollectionMode(true);
+                setSelectedBuilding(null);
+              }}
+            />
+          ) : !selectedBuilding ? (
+            <BuildingsCollectionScreen
+              buildings={buildings}
+              loading={loadingBuildings}
+              eventCode={availableEvents.find((e) => e.id === effectiveEventId)?.code || "GU-26"}
+              onSelectBuilding={(b) => void selectBuilding(b)}
+              onViewFlats={(b) => void selectBuilding(b)}
+              onOpenCollect={(b) => {
+                void selectBuilding(b);
+                setIsFastReceiptOpen(true);
+              }}
+              onRefresh={() => void loadBuildings()}
+              onStartCollection={() => {
+                setActiveTab("collection");
+                setCollectionMode(true);
+              }}
+              isAdmin={false}
+            />
+          ) : (
+            <div className="space-y-4 animate-in fade-in">
+              <BuildingFlatGrid
+                building={selectedBuilding}
+                properties={properties}
+                loading={loadingProperties}
+                onBack={() => setSelectedBuilding(null)}
+                onSelectProperty={openPropertyReceipt}
+                onStartNextFlat={startNextFlat}
+                onAddProperty={addPropertyDirect}
+              />
+            </div>
+          )}
         </div>
       )}
 

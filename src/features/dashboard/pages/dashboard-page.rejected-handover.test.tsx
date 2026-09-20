@@ -225,7 +225,7 @@ describe("DashboardPage rejected handover resubmission characterization", () => 
     // Open Handover from Volunteer Home More menu
     expect(await screen.findByTestId("volunteer-more-trigger")).toBeTruthy();
     fireEvent.click(screen.getByTestId("volunteer-more-trigger"));
-    fireEvent.click(screen.getByText(/हस्तांतरण/i));
+    fireEvent.click(screen.getByTestId("more-opt-handover"));
 
     // 1 & 4. Verify completed session is loaded and rejected handover status is displayed
     expect(await screen.findByText(/Session Handover/i)).toBeTruthy();

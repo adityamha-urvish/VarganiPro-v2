@@ -201,7 +201,7 @@ describe("DashboardPage close-session characterization", () => {
 
     expect(await screen.findByTestId("volunteer-more-trigger")).toBeTruthy();
     fireEvent.click(screen.getByTestId("volunteer-more-trigger"));
-    fireEvent.click(screen.getByText(/सत्र तपशील/i));
+    fireEvent.click(screen.getByTestId("more-opt-session-details"));
 
     return screen.findByRole("button", {
       name: "Close Collection Session",

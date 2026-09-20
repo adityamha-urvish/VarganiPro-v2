@@ -18,6 +18,7 @@ export interface VolunteerHomeProps {
   onNavigateToHandover: () => void;
   onNavigateToSessionDetails: () => void;
   onStartCollection?: () => void;
+  onBackToHome?: () => void;
   // State A session start selection props
   events?: StartCollectionEvent[];
   books?: StartCollectionBook[];
@@ -42,6 +43,7 @@ export function VolunteerHome({
   onNavigateToHandover,
   onNavigateToSessionDetails,
   onStartCollection,
+  onBackToHome,
   events = [],
   books = [],
   selectedEventId = "",
@@ -55,29 +57,82 @@ export function VolunteerHome({
 
   const isActiveSession = Boolean(session && session.sessionStatus === "open");
 
+  // Determine active book for State A display
+  const activeBook =
+    books.find((b) => b.id === selectedBookId) ||
+    books[0] ||
+    null;
+
   return (
-    <div className="w-full max-w-md mx-auto flex flex-col justify-between min-h-[calc(100svh-6rem)] px-1 sm:px-0 py-2 animate-in fade-in select-none">
+    <div className="w-full max-w-md mx-auto space-y-5 px-1 sm:px-0 py-2 sm:py-4 animate-in fade-in select-none">
       {/* -------------------------------------------------------------
-          1. TOP BAR / BUILDING CONTEXT
+          0. BACK TO DASHBOARD (WHEN IN COLLECTION MODE)
       -------------------------------------------------------------- */}
-      <div className="space-y-3">
-        {/* Context & More Trigger Row */}
-        <div className="flex items-center justify-between gap-2">
-          {/* Building / Book Context */}
+      {onBackToHome && (
+        <div className="flex items-center justify-between pb-1">
+          <button
+            type="button"
+            data-testid="volunteer-back-to-home-btn"
+            onClick={onBackToHome}
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-slate-950 bg-white border border-slate-200/90 px-3 py-1.5 rounded-xl shadow-2xs cursor-pointer transition-all hover:bg-slate-50"
+          >
+            <span>←</span>
+            <span>Back to Dashboard</span>
+          </button>
+          <span className="text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+            ⚡ Collection Mode
+          </span>
+        </div>
+      )}
+
+      {/* -------------------------------------------------------------
+          1. TOP CONTEXT BAR & MORE TRIGGER
+      -------------------------------------------------------------- */}
+      <div className="space-y-2">
+        {/* Optional Multi-Event Switcher Pill */}
+        {!isActiveSession && events.length > 1 && (
+          <div className="flex items-center justify-between px-2 text-xs">
+            <label
+              htmlFor="volunteer-event-select"
+              className="text-[10px] uppercase font-bold tracking-wider text-slate-400"
+            >
+              Event
+            </label>
+            <div className="relative inline-flex items-center">
+              <select
+                id="volunteer-event-select"
+                value={selectedEventId}
+                onChange={(e) => onEventChange?.(e.target.value)}
+                disabled={startSessionLoading}
+                className="bg-slate-100 hover:bg-slate-200/80 border border-slate-200/60 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 cursor-pointer focus:outline-none focus:ring-1 focus:ring-orange-500"
+              >
+                {events.map((ev) => (
+                  <option key={ev.id} value={ev.id}>
+                    {ev.name} ({ev.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
+
+        {/* Top Context Card & More Button */}
+        <div className="flex items-stretch justify-between gap-2">
           {isActiveSession ? (
+            /* STATE B: Active Building & Session Context */
             <button
               type="button"
               data-testid="volunteer-building-context"
               onClick={onChangeBuilding}
-              className="flex items-center gap-2 text-left px-3.5 py-2.5 rounded-2xl bg-white border border-slate-200/80 shadow-xs hover:border-slate-300 transition-all cursor-pointer group flex-1 min-w-0"
+              className="flex items-center gap-2.5 text-left px-3.5 py-3 rounded-2xl bg-white border border-slate-200/80 shadow-xs hover:border-slate-300 transition-all cursor-pointer group flex-1 min-w-0"
             >
-              <span className="text-base shrink-0">🏢</span>
+              <span className="text-xl shrink-0">🏢</span>
               <div className="min-w-0 flex-1">
                 <div className="text-xs font-black text-slate-900 truncate flex items-center justify-between">
                   <span className="truncate">
                     {selectedBuilding
                       ? `${selectedBuilding.buildingName}${selectedBuilding.wing ? ` · Wing ${selectedBuilding.wing}` : ""}`
-                      : "इमारत निवडा / Select Building"}
+                      : "Select Building"}
                   </span>
                   {session && (
                     <span className="text-[10px] font-mono font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded ml-1 shrink-0">
@@ -85,9 +140,9 @@ export function VolunteerHome({
                     </span>
                   )}
                 </div>
-                <div className="text-[11px] font-bold text-amber-600 group-hover:text-amber-700 flex items-center justify-between">
+                <div className="text-[11px] font-bold text-amber-600 group-hover:text-amber-700 flex items-center justify-between mt-0.5">
                   <span className="flex items-center gap-1">
-                    <span>{selectedBuilding ? "इमारत बदला" : "इमारत निवडा"}</span>
+                    <span>{selectedBuilding ? "Change Building" : "Select Building"}</span>
                     <span className="text-xs">›</span>
                   </span>
                   {session && (
@@ -99,27 +154,61 @@ export function VolunteerHome({
               </div>
             </button>
           ) : (
-            <div className="flex items-center gap-2 text-left px-3.5 py-2.5 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex-1 min-w-0">
-              <span className="text-base shrink-0">📚</span>
+            /* STATE A: Consolidated Sleek Receipt Book Context Card */
+            <div className="relative flex items-center gap-2.5 text-left px-3.5 py-3 rounded-2xl bg-white border border-slate-200/80 shadow-xs hover:border-slate-300 transition-all flex-1 min-w-0 group">
+              <span className="text-xl shrink-0">📚</span>
               <div className="min-w-0 flex-1">
-                <div className="text-xs font-black text-slate-900 truncate">
-                  {session?.bookNumber || (books[0]?.book_number ?? "पावती पुस्तक निवडा")}
+                <label
+                  htmlFor="volunteer-book-select"
+                  className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate cursor-pointer"
+                >
+                  Receipt Book
+                </label>
+                <div className="text-xs font-black text-slate-900 truncate font-mono mt-0.5 flex items-center justify-between">
+                  <span className="truncate">
+                    {session?.bookNumber || activeBook?.book_number || "Select Receipt Book"}
+                  </span>
+                  {books.length > 1 && (
+                    <span className="text-slate-400 text-xs font-bold shrink-0 ml-1">⌄</span>
+                  )}
                 </div>
-                <div className="text-[11px] font-medium text-slate-500">
-                  {session ? `Series ${session.prefix}${session.startNumber}..${session.endNumber}` : "सत्र सुरू करण्यासाठी तयार"}
+                <div className="text-[11px] font-medium text-slate-500 mt-0.5">
+                  {session
+                    ? `Series ${session.prefix}${session.startNumber}..${session.endNumber}`
+                    : activeBook
+                    ? `${activeBook.prefix}${activeBook.current_number ?? activeBook.start_number}..${activeBook.end_number}`
+                    : "Ready to start session"}
                 </div>
               </div>
+
+              {/* Underlying Accessible Native Select for changing books */}
+              {books.length > 0 && (
+                <select
+                  id="volunteer-book-select"
+                  value={selectedBookId || activeBook?.id || ""}
+                  onChange={(e) => onBookChange?.(e.target.value)}
+                  disabled={startSessionLoading || books.length <= 1}
+                  className={`absolute inset-0 w-full h-full opacity-0 ${books.length > 1 ? "cursor-pointer" : "cursor-default"}`}
+                  aria-label="Select Receipt Book"
+                >
+                  {books.map((bk) => (
+                    <option key={bk.id} value={bk.id}>
+                      {bk.book_number} ({bk.prefix}{bk.current_number ?? bk.start_number}..{bk.end_number})
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
           )}
 
-          {/* ONE Compact Secondary 'More / ⋯' Control */}
+          {/* Compact More '⋯' Control */}
           <button
             type="button"
             data-testid="volunteer-more-trigger"
             onClick={() => setShowMoreMenu(true)}
-            className="h-11 w-11 shrink-0 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center justify-center text-slate-700 hover:text-slate-950 hover:bg-slate-50 transition-all cursor-pointer relative"
-            aria-label="इतर पर्याय / More Options"
-            title="इतर पर्याय"
+            className="w-12 shrink-0 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center justify-center text-slate-700 hover:text-slate-950 hover:bg-slate-50 transition-all cursor-pointer relative"
+            aria-label="Options"
+            title="Options"
           >
             <span className="text-lg font-black leading-none">⋯</span>
             {pendingSyncCount > 0 && (
@@ -128,86 +217,36 @@ export function VolunteerHome({
           </button>
         </div>
 
-        {/* State A Selection Controls (If Starting Collection) */}
-        {!isActiveSession && books.length > 0 && (
-          <div className="rounded-2xl bg-white border border-slate-200/80 p-3.5 shadow-xs space-y-2.5">
-            {events.length > 1 && (
-              <div>
-                <label
-                  htmlFor="volunteer-event-select"
-                  className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block mb-1"
-                >
-                  उत्सव / Event
-                </label>
-                <select
-                  id="volunteer-event-select"
-                  value={selectedEventId}
-                  onChange={(e) => onEventChange?.(e.target.value)}
-                  disabled={startSessionLoading}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-900 focus:outline-none focus:border-orange-500"
-                >
-                  {events.map((ev) => (
-                    <option key={ev.id} value={ev.id}>
-                      {ev.name} ({ev.code})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            <div>
-              <label
-                htmlFor="volunteer-book-select"
-                className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block mb-1"
-              >
-                पावती पुस्तक / Receipt Book
-              </label>
-              <select
-                id="volunteer-book-select"
-                value={selectedBookId}
-                onChange={(e) => onBookChange?.(e.target.value)}
-                disabled={startSessionLoading || books.length === 0}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-orange-500"
-              >
-                {books.map((bk) => (
-                  <option key={bk.id} value={bk.id}>
-                    {bk.book_number} ({bk.prefix}{bk.current_number ?? bk.start_number}..{bk.end_number})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {startSessionError && (
-              <p className="text-xs text-red-600 font-medium pt-1">{startSessionError}</p>
-            )}
-          </div>
+        {/* Start Session Error Alert (if any) */}
+        {!isActiveSession && startSessionError && (
+          <p className="text-xs text-red-600 font-medium px-2 pt-1">{startSessionError}</p>
         )}
       </div>
 
       {/* -------------------------------------------------------------
           2. CENTRAL TODAY'S COLLECTION SUMMARY (HERO TYPOGRAPHY)
       -------------------------------------------------------------- */}
-      <div className="py-8 sm:py-12 text-center space-y-2">
-        <span className="font-brand-marathi text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-500">
-          आजचे संकलन
+      <div className="py-5 sm:py-7 text-center space-y-2 rounded-3xl bg-gradient-to-b from-slate-50/80 to-transparent border border-slate-100/80 shadow-2xs">
+        <span className="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-500">
+          Today's Collection
         </span>
 
         <div className="font-brand-pro text-5xl sm:text-6xl font-black text-slate-950 tracking-tight">
           ₹{todayAmount.toLocaleString("en-IN")}
         </div>
 
-        <div className="flex items-center justify-center gap-2 text-xs sm:text-sm font-medium text-slate-600 pt-1">
-          <span className="font-bold text-slate-900">{receiptCount} पावत्या</span>
+        <div className="flex items-center justify-center gap-2 text-xs sm:text-sm font-medium text-slate-600 pt-0.5">
+          <span className="font-bold text-slate-900">{receiptCount} {receiptCount === 1 ? "receipt" : "receipts"}</span>
           {houseCount > 0 && (
             <>
               <span className="text-slate-300">·</span>
-              <span>{houseCount} घरे</span>
+              <span>{houseCount} {houseCount === 1 ? "unit" : "units"}</span>
             </>
           )}
           {pendingSyncCount > 0 && (
             <>
               <span className="text-slate-300">·</span>
-              <span className="text-amber-600 font-bold">({pendingSyncCount} ऑफलाइन)</span>
+              <span className="text-amber-600 font-bold">({pendingSyncCount} offline)</span>
             </>
           )}
         </div>
@@ -216,7 +255,7 @@ export function VolunteerHome({
       {/* -------------------------------------------------------------
           3. PRIMARY ACTION (DOMINANT THUMB-FRIENDLY ORANGE BUTTON)
       -------------------------------------------------------------- */}
-      <div className="space-y-3 pb-2">
+      <div className="space-y-3">
         {isActiveSession ? (
           <Button
             type="button"
@@ -224,8 +263,7 @@ export function VolunteerHome({
             onClick={onOpenCollect}
             className="w-full h-15 sm:h-16 rounded-2xl bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 text-white font-black text-lg sm:text-xl tracking-tight shadow-md shadow-orange-600/20 active:scale-[0.99] transition-all cursor-pointer flex items-center justify-center gap-2"
           >
-            <span className="font-brand-marathi font-black">पावती तयार करा</span>
-            <span className="text-sm sm:text-base font-normal opacity-90">· Collect</span>
+            <span>Create Receipt · Collect</span>
             <span className="text-xl leading-none">→</span>
           </Button>
         ) : (
@@ -233,15 +271,14 @@ export function VolunteerHome({
             type="button"
             data-testid="volunteer-start-btn"
             onClick={onStartCollection}
-            disabled={startSessionLoading || (!selectedBookId && books.length > 0)}
+            disabled={startSessionLoading || (!selectedBookId && books.length > 0 && !activeBook)}
             className="w-full h-15 sm:h-16 rounded-2xl bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 text-white font-black text-lg sm:text-xl tracking-tight shadow-md shadow-orange-600/20 active:scale-[0.99] transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
           >
             {startSessionLoading ? (
-              <span>सुरू होत आहे...</span>
+              <span>Starting session...</span>
             ) : (
               <>
-                <span className="font-brand-marathi font-black">संकलन सुरू करा</span>
-                <span className="text-sm sm:text-base font-normal opacity-90">· Start</span>
+                <span>Start Collection</span>
                 <span className="text-xl leading-none">→</span>
               </>
             )}
@@ -249,8 +286,8 @@ export function VolunteerHome({
         )}
 
         <div className="flex items-center justify-between text-[11px] font-medium text-slate-400 px-2">
-          <span>🔒 सुरक्षित ऑफलाइन कॅश</span>
-          <span>⚡ जलद पावती</span>
+          <span>🔒 Secure Offline Cash</span>
+          <span>⚡ Instant Receipts</span>
         </div>
       </div>
 
@@ -265,8 +302,8 @@ export function VolunteerHome({
           >
             {/* Sheet Header */}
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <h3 className="text-base font-black text-slate-900 font-brand-marathi">
-                इतर पर्याय · Options
+              <h3 className="text-base font-black text-slate-900">
+                Options
               </h3>
               <button
                 type="button"
@@ -292,8 +329,8 @@ export function VolunteerHome({
                 <div className="flex items-center gap-3">
                   <span className="text-lg">🏢</span>
                   <div className="text-left">
-                    <span className="block font-brand-marathi font-bold">इमारती आणि फ्लॅट्स</span>
-                    <span className="text-[11px] font-normal text-slate-500">Buildings & Corridor</span>
+                    <span className="block font-bold">Buildings & Flats</span>
+                    <span className="text-[11px] font-normal text-slate-500">Corridors & Units</span>
                   </div>
                 </div>
                 <span className="text-slate-400">→</span>
@@ -312,14 +349,14 @@ export function VolunteerHome({
                   <span className="text-lg">📜</span>
                   <div className="text-left">
                     <div className="flex items-center gap-2">
-                      <span className="font-brand-marathi font-bold">पावत्यांचा इतिहास</span>
+                      <span className="block font-bold">Receipt History</span>
                       {pendingSyncCount > 0 && (
                         <span className="rounded-full bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.2">
                           {pendingSyncCount}
                         </span>
                       )}
                     </div>
-                    <span className="text-[11px] font-normal text-slate-500">Receipts & Reprints</span>
+                    <span className="text-[11px] font-normal text-slate-500">View & Reprints</span>
                   </div>
                 </div>
                 <span className="text-slate-400">→</span>
@@ -337,8 +374,8 @@ export function VolunteerHome({
                 <div className="flex items-center gap-3">
                   <span className="text-lg">🤝</span>
                   <div className="text-left">
-                    <span className="font-brand-marathi font-bold">संकलन हस्तांतरण</span>
-                    <span className="text-[11px] font-normal text-slate-500">Session Handover</span>
+                    <span className="block font-bold">Session Handover</span>
+                    <span className="text-[11px] font-normal text-slate-500">Submit cash & closing</span>
                   </div>
                 </div>
                 <span className="text-slate-400">→</span>
@@ -356,8 +393,8 @@ export function VolunteerHome({
                 <div className="flex items-center gap-3">
                   <span className="text-lg">⚙️</span>
                   <div className="text-left">
-                    <span className="font-brand-marathi font-bold">सत्र तपशील / बंद करा</span>
-                    <span className="text-[11px] font-normal text-slate-500">Session & Close</span>
+                    <span className="block font-bold">Session Details & Close</span>
+                    <span className="text-[11px] font-normal text-slate-500">Summary & Close</span>
                   </div>
                 </div>
                 <span className="text-slate-400">→</span>

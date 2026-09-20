@@ -324,8 +324,9 @@ describe("DashboardPage Bootstrap & Rehydration Characterization", () => {
     expect(getLocalReceiptsMock).toHaveBeenCalledWith("book-1");
 
     // Verifies Volunteer Home is present for open session
-    expect(screen.getByTestId("volunteer-collect-btn")).toBeTruthy();
-    expect(screen.getByText(/पावती तयार करा/i)).toBeTruthy();
+    const collectBtn = screen.getByTestId("volunteer-collect-btn");
+    expect(collectBtn).toBeTruthy();
+    expect(collectBtn.textContent).toContain("Collect");
 
     // Verifies admin panel is NOT rendered for volunteer
     expect(screen.queryByText("Collection Handover Verification")).toBeNull();
@@ -340,7 +341,7 @@ describe("DashboardPage Bootstrap & Rehydration Characterization", () => {
     // Renders completed session summary on Volunteer Home State A
     expect(await screen.findByText("BOOK-01")).toBeTruthy();
     expect(screen.getByTestId("volunteer-start-btn")).toBeTruthy();
-    expect(screen.getByText(/संकलन सुरू करा/i)).toBeTruthy();
+    expect(screen.getAllByText(/Start Collection/i).length).toBeGreaterThan(0);
   });
 
   it("3. Primary initialization failure → direct-query fallback: restores session via loadCurrentCollectionSession", async () => {
@@ -742,15 +743,15 @@ describe("DashboardPage Bootstrap & Rehydration Characterization", () => {
       screen.queryByText("Unable to initialize collection session")
     ).toBeNull();
 
-    // VolunteerHome State A is rendered with "संकलन सुरू करा" CTA
+    // VolunteerHome State A is rendered with "Start Collection" CTA
     const startBtn = await screen.findByTestId("volunteer-start-btn");
     expect(startBtn).toBeTruthy();
-    expect(startBtn.textContent).toContain("संकलन सुरू करा");
+    expect(startBtn.textContent).toContain("Start Collection");
 
     // More trigger is accessible
     expect(screen.getByTestId("volunteer-more-trigger")).toBeTruthy();
 
     // Today's total is shown as ₹0
-    expect(screen.getByText("₹0")).toBeTruthy();
+    expect(screen.getAllByText("₹0").length).toBeGreaterThan(0);
   });
 });

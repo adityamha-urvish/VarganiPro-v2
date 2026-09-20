@@ -1,0 +1,252 @@
+import { useState } from "react";
+import type { CachedBuildingSummary } from "@/lib/offline/offline-db";
+
+export interface BuildingsCollectionScreenProps {
+  buildings: CachedBuildingSummary[];
+  loading: boolean;
+  eventCode?: string;
+  onSelectBuilding: (building: CachedBuildingSummary) => void;
+  onOpenCollect: (building: CachedBuildingSummary) => void;
+  onViewFlats: (building: CachedBuildingSummary) => void;
+  onRefresh?: () => void;
+  onStartCollection?: () => void;
+  onAddBuilding?: () => void;
+  isAdmin?: boolean;
+}
+
+export function BuildingsCollectionScreen({
+  buildings,
+  loading,
+  eventCode = "GU-26",
+  onSelectBuilding,
+  onOpenCollect,
+  onViewFlats,
+  onRefresh,
+  onStartCollection,
+  onAddBuilding,
+  isAdmin = false,
+}: BuildingsCollectionScreenProps) {
+  const [propertyTypeFilter, setPropertyTypeFilter] = useState<"residential" | "commercial">("residential");
+
+  // Pastel theme cycle for cards matching reference
+  const pastelStyles = [
+    {
+      cardBg: "bg-[#E9F6ED]",
+      border: "border-[#C8E6D0]",
+      badgeBg: "bg-emerald-100 text-emerald-800",
+      progressBg: "bg-emerald-500",
+      titleColor: "text-emerald-950",
+    },
+    {
+      cardBg: "bg-[#E8F2FA]",
+      border: "border-[#C5DFF2]",
+      badgeBg: "bg-sky-100 text-sky-800",
+      progressBg: "bg-sky-500",
+      titleColor: "text-sky-950",
+    },
+    {
+      cardBg: "bg-[#FEF5E7]",
+      border: "border-[#FCE2B8]",
+      badgeBg: "bg-amber-100 text-amber-900",
+      progressBg: "bg-amber-500",
+      titleColor: "text-amber-950",
+    },
+  ];
+
+  return (
+    <div className="w-full max-w-lg mx-auto space-y-4 sm:space-y-5 px-1 sm:px-0 py-1 sm:py-2 animate-in fade-in select-none">
+      {/* -------------------------------------------------------------
+          1. HEADER: BUILDING COLLECTION + DIYA
+      -------------------------------------------------------------- */}
+      <div className="flex items-center justify-between px-1">
+        <div className="flex items-center gap-2">
+          <span className="text-2xl">🪔</span>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-black text-[#800020] tracking-tight">
+              Building Collection
+            </h1>
+            <p className="text-xs font-semibold text-slate-500">
+              Buildings List
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          {onRefresh && (
+            <button
+              type="button"
+              onClick={onRefresh}
+              className="h-8 w-8 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-slate-950 flex items-center justify-center text-xs font-bold cursor-pointer shadow-2xs"
+              title="रीफ्रेश करा / Refresh"
+            >
+              ↻
+            </button>
+          )}
+
+          {isAdmin && onAddBuilding && (
+            <button
+              type="button"
+              onClick={onAddBuilding}
+              className="text-xs font-bold bg-[#800020] text-white px-2.5 py-1.5 rounded-xl hover:bg-[#6b001a] transition-colors cursor-pointer"
+            >
+              + Add
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* -------------------------------------------------------------
+          2. SEGMENTED FILTER: RESIDENTIAL / COMMERCIAL
+      -------------------------------------------------------------- */}
+      <div className="flex items-center gap-2 bg-slate-100/90 p-1 rounded-2xl border border-slate-200/80">
+        <button
+          type="button"
+          data-testid="filter-residential"
+          onClick={() => setPropertyTypeFilter("residential")}
+          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            propertyTypeFilter === "residential"
+              ? "bg-[#0B2530] text-white shadow-xs"
+              : "text-slate-600 hover:text-slate-900"
+          }`}
+        >
+          <span>🏢</span>
+          <span>Residential ({buildings.length})</span>
+        </button>
+
+        <button
+          type="button"
+          data-testid="filter-commercial"
+          onClick={() => setPropertyTypeFilter("commercial")}
+          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            propertyTypeFilter === "commercial"
+              ? "bg-[#0B2530] text-white shadow-xs"
+              : "text-slate-600 hover:text-slate-900"
+          }`}
+        >
+          <span>🏪</span>
+          <span>Commercial (0)</span>
+        </button>
+      </div>
+
+      {/* -------------------------------------------------------------
+          3. BUILDINGS LIST / PASTEL CARDS
+      -------------------------------------------------------------- */}
+      {loading && buildings.length === 0 ? (
+        <div className="p-8 text-center text-xs font-medium text-slate-500 animate-pulse bg-white rounded-3xl border border-slate-200">
+          Loading buildings...
+        </div>
+      ) : propertyTypeFilter === "commercial" ? (
+        <div className="rounded-3xl border bg-white p-8 text-center space-y-2 shadow-2xs">
+          <span className="text-3xl block">🏪</span>
+          <h3 className="text-sm font-bold text-slate-900">No Commercial Shops</h3>
+          <p className="text-xs text-slate-500 max-w-xs mx-auto">
+            Commercial shops can be added from Admin Master Data.
+          </p>
+        </div>
+      ) : buildings.length === 0 ? (
+        <div className="rounded-3xl border bg-white p-8 text-center space-y-3 shadow-2xs">
+          <span className="text-3xl block">🏢</span>
+          <h3 className="text-base font-bold text-slate-900">No Buildings Found</h3>
+          <p className="text-xs text-slate-500 max-w-sm mx-auto">
+            No residential buildings are available for this event yet.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {buildings.map((bld: any, idx) => {
+            const style = pastelStyles[idx % pastelStyles.length];
+            const collected = bld.collectedCount ?? bld.collectedUnits ?? 0;
+            const totalUnits = (bld.totalUnits && bld.totalUnits > 0)
+              ? bld.totalUnits
+              : Math.max(1, collected + (bld.pendingCount || bld.pendingUnits || 0) + (bld.notVisitedCount || bld.unvisitedUnits || 0));
+            const progressPct = bld.completionPercentage ?? (Math.min(100, Math.round((collected / totalUnits) * 100)) || 0);
+
+            return (
+              <div
+                key={bld.buildingId}
+                className={`rounded-3xl border ${style.border} ${style.cardBg} p-4 sm:p-5 shadow-xs space-y-3 transition-all hover:shadow-sm`}
+              >
+                {/* Title & Stats */}
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <h3 className={`text-base font-black ${style.titleColor}`}>
+                      {bld.buildingName} {bld.wing ? `· Wing ${bld.wing}` : ""}
+                    </h3>
+                    <p className="text-xs font-semibold text-slate-600 mt-0.5">
+                      {collected} / {totalUnits} Flats Collected
+                    </p>
+                  </div>
+                  {progressPct === 100 ? (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-600 text-white shadow-2xs">
+                      ✓ Complete
+                    </span>
+                  ) : (
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${style.badgeBg}`}>
+                      {progressPct}% Done
+                    </span>
+                  )}
+                </div>
+
+                {/* Progress bar */}
+                <div className="w-full bg-white/80 rounded-full h-2 overflow-hidden border border-black/5">
+                  <div
+                    className={`${style.progressBg} h-2 rounded-full transition-all duration-500`}
+                    style={{ width: `${progressPct}%` }}
+                  />
+                </div>
+
+                {/* Action Buttons Row */}
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    data-testid={`btn-view-flats-${bld.buildingId}`}
+                    onClick={() => {
+                      onSelectBuilding(bld);
+                      onViewFlats(bld);
+                    }}
+                    className="flex-1 h-9 rounded-xl border border-slate-300/90 bg-white/90 hover:bg-white text-slate-800 text-xs font-bold transition-all shadow-2xs cursor-pointer flex items-center justify-center gap-1"
+                  >
+                    <span>view flats</span>
+                    <span>→</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    data-testid={`btn-collect-${bld.buildingId}`}
+                    onClick={() => {
+                      onSelectBuilding(bld);
+                      onOpenCollect(bld);
+                    }}
+                    className="flex-1 h-9 rounded-xl bg-[#E56345] hover:bg-[#D45336] text-white text-xs font-black tracking-wide shadow-xs active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-1"
+                  >
+                    <span>⚡ collect</span>
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* -------------------------------------------------------------
+          4. BOTTOM CTA: START COLLECTION
+      -------------------------------------------------------------- */}
+      {onStartCollection && (
+        <div className="pt-2">
+          <button
+            type="button"
+            data-testid="buildings-cta-start-collection"
+            onClick={onStartCollection}
+            className="w-full h-14 rounded-2xl bg-gradient-to-r from-[#800020] via-[#A82400] to-[#E05300] hover:from-[#6B001B] hover:to-[#C74900] text-white font-extrabold text-base tracking-tight shadow-lg shadow-orange-950/20 active:scale-[0.99] transition-all cursor-pointer flex items-center justify-center gap-2"
+          >
+            <span>⚡</span>
+            <span className="font-brand-marathi font-black">
+              Start Collection for {eventCode}
+            </span>
+            <span className="text-lg leading-none">→</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}

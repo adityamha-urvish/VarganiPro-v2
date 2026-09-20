@@ -468,7 +468,7 @@ describe("DashboardPage receipt creation workflow characterization", () => {
 
     expect(await screen.findByTestId("volunteer-more-trigger")).toBeTruthy();
     fireEvent.click(screen.getByTestId("volunteer-more-trigger"));
-    fireEvent.click(screen.getByText(/सत्र तपशील/i));
+    fireEvent.click(screen.getByTestId("more-opt-session-details"));
 
     const submitButton = await screen.findByRole("button", {
       name: /Collection Session Completed/i,
