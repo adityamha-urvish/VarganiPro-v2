@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, fireEvent } from "@testing-library/react";
+
 
 import type { CollectionSessionContext } from "@/features/collection/services/collection-session.service";
 import type { LocalReceipt } from "@/lib/offline/offline-db";
@@ -533,18 +534,20 @@ describe("DashboardPage Bootstrap & Rehydration Characterization", () => {
 
     render(<DashboardPage />);
 
-    // Admin Handover panel renders with submitted handover and volunteer name
-    expect(
-      await screen.findByText(/Handover Verification/i)
-    ).toBeTruthy();
-    expect(await screen.findByText(/Suresh Patil/)).toBeTruthy();
+    // Secretary Home renders with primary + New Receipt CTA and Quick Actions
+    expect(await screen.findByTestId("secretary-new-receipt-btn")).toBeTruthy();
+    expect(screen.getByTestId("home-tile-volunteers")).toBeTruthy();
+    expect(screen.getByTestId("home-tile-handovers")).toBeTruthy();
 
-    // Start collection card is available for admin
-    expect(screen.getByRole("button", { name: "Start Collection" })).toBeTruthy();
+    // Navigate to Handovers tab to verify Handover panel renders
+    fireEvent.click(screen.getByTestId("nav-tab-handovers"));
+    expect(await screen.findByText(/Handover Verification/i)).toBeTruthy();
+    expect(await screen.findByText(/Suresh Patil/)).toBeTruthy();
 
     // Volunteer active session cards are not shown
     expect(screen.queryByLabelText("Donor Name *")).toBeNull();
   });
+
 
   it("5. Non-admin with no recoverable session: displays initialization error state", async () => {
     initializeCollectionSessionMock.mockRejectedValueOnce(

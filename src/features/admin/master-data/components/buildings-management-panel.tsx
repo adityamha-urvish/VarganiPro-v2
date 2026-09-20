@@ -127,6 +127,11 @@ export function BuildingsManagementPanel({
     }
   }, [subTab, organizationId]);
 
+  useEffect(() => {
+    setSubTab(initialSubTab);
+  }, [initialSubTab]);
+
+
   // Handle Minimal Building Creation (No Bulk Generation)
   const handleCreateBuilding = async (e: React.FormEvent) => {
     e.preventDefault();

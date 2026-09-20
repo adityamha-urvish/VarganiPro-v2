@@ -293,7 +293,9 @@ describe("DashboardPage start collection workflow characterization", () => {
 
     render(<DashboardPage />);
 
-    expect(await screen.findByText(/Handover Verification/i)).toBeTruthy();
+    const startCta = await screen.findByTestId("secretary-new-receipt-btn");
+    fireEvent.click(startCta);
+
     expect(await screen.findByRole("heading", { name: "Start Collection" })).toBeTruthy();
 
     const eventSelect = (await screen.findByLabelText("Event")) as HTMLSelectElement;
@@ -319,9 +321,13 @@ describe("DashboardPage start collection workflow characterization", () => {
 
     render(<DashboardPage />);
 
+    const startCta = await screen.findByTestId("secretary-new-receipt-btn");
+    fireEvent.click(startCta);
+
     const eventSelect = (await screen.findByLabelText("Event")) as HTMLSelectElement;
     expect(await screen.findByText(/BOOK-01/)).toBeTruthy();
     expect(eventSelect.value).toBe("event-1");
+
 
     fireEvent.change(eventSelect, { target: { value: "event-2" } });
 
@@ -422,6 +428,9 @@ describe("DashboardPage start collection workflow characterization", () => {
 
     render(<DashboardPage />);
 
+    const startCta = await screen.findByTestId("secretary-new-receipt-btn");
+    fireEvent.click(startCta);
+
     expect(await screen.findByRole("heading", { name: "Start Collection" })).toBeTruthy();
     expect(await screen.findByText(/BOOK-01/)).toBeTruthy();
 
@@ -479,6 +488,9 @@ describe("DashboardPage start collection workflow characterization", () => {
 
     render(<DashboardPage />);
 
+    const startCta = await screen.findByTestId("secretary-new-receipt-btn");
+    fireEvent.click(startCta);
+
     expect(await screen.findByRole("heading", { name: "Start Collection" })).toBeTruthy();
     expect(await screen.findByText(/BOOK-01/)).toBeTruthy();
 
@@ -514,6 +526,9 @@ describe("DashboardPage start collection workflow characterization", () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
 
     render(<DashboardPage />);
+
+    const startCta = await screen.findByTestId("secretary-new-receipt-btn");
+    fireEvent.click(startCta);
 
     expect(await screen.findByRole("heading", { name: "Start Collection" })).toBeTruthy();
     expect(await screen.findByText(/BOOK-01/)).toBeTruthy();
@@ -589,8 +604,12 @@ describe("DashboardPage start collection workflow characterization", () => {
 
     render(<DashboardPage />);
 
+    const startCta = await screen.findByTestId("secretary-new-receipt-btn");
+    fireEvent.click(startCta);
+
     expect(await screen.findByRole("heading", { name: "Start Collection" })).toBeTruthy();
     expect((await screen.findAllByText(/TEST-8F2-PILOT-2026/)).length).toBeGreaterThan(0);
+
 
     const startButton = screen.getByRole("button", { name: "Start Collection" });
     fireEvent.click(startButton);

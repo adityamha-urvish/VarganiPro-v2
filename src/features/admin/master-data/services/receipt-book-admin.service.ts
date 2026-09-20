@@ -133,3 +133,37 @@ export async function createReceiptBook(
     status: data.status,
   };
 }
+
+export interface AssignReceiptBookResult {
+  success: boolean;
+  receiptBookId: string;
+  status: ReceiptBookStatus;
+  assignedVolunteerId: string | null;
+}
+
+/**
+ * Assign or unassign a receipt book to/from a volunteer.
+ */
+export async function assignReceiptBook(
+  receiptBookId: string,
+  volunteerId: string | null
+): Promise<AssignReceiptBookResult> {
+  const { data, error } = await supabase.rpc("assign_receipt_book", {
+    p_receipt_book_id: receiptBookId,
+    p_volunteer_id: volunteerId || null,
+  });
+
+  if (error) {
+    console.error("assignReceiptBook error:", error);
+    throw new Error(error.message || "Failed to assign receipt book");
+  }
+
+  return {
+    success: true,
+    receiptBookId: data.receipt_book_id || receiptBookId,
+    status: data.status,
+    assignedVolunteerId: data.assigned_volunteer_id,
+  };
+}
+
+

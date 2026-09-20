@@ -45,6 +45,7 @@ export function DashboardPage() {
   const [activeTab, setActiveTab] = useState<NavigationTab>("collection");
   const [collectionMode, setCollectionMode] = useState(false);
   const [volunteerSubView, setVolunteerSubView] = useState<"home" | "buildings" | "history" | "handover" | "session">("home");
+  const [masterDataSubTab, setMasterDataSubTab] = useState<"buildings" | "shops" | "books">("buildings");
   const [receiptToView, setReceiptToView] =
     useState<LocalReceipt | null>(null);
 
@@ -368,6 +369,11 @@ export function DashboardPage() {
                     setVolunteerSubView("home");
                   }
                 }}
+                onStartGeneralReceipt={() => {
+                  setActiveTab("collection");
+                  setCollectionMode(true);
+                  setSelectedBuilding(null);
+                }}
                 onNavigateTab={(tab) => {
                   setActiveTab(tab);
                   if (tab === "collection") {
@@ -377,52 +383,19 @@ export function DashboardPage() {
                 }}
                 onNavigateToHistory={() => setActiveTab("history")}
                 onNavigateToHandover={() => setActiveTab("handovers")}
+                onNavigateToBooks={() => {
+                  setMasterDataSubTab("books");
+                  setActiveTab("masterData");
+                }}
                 onNavigateToSessionDetails={() => {
                   setCollectionMode(true);
                   setVolunteerSubView("session");
                 }}
                 onChangeBuilding={() => {
+                  setMasterDataSubTab("buildings");
                   setActiveTab("masterData");
                 }}
               />
-
-              {/* ADMIN OVERVIEW PANELS (FOR INSTANT COMMAND ACCESS) */}
-              {isAdmin && (
-                <div className="space-y-6 pt-2">
-                  <AdminHandoverPanel
-                    handovers={adminHandovers}
-                    loading={adminHandoverLoading}
-                    error={adminHandoverError}
-                    actionLoadingId={adminActionLoading}
-                    onRefresh={() => {
-                      void loadAdminHandovers();
-                      void refreshLedger();
-                    }}
-                    onVerifyHandover={(id) => void handleVerifyHandover(id)}
-                    onRejectHandover={(id, reason) =>
-                      void handleRejectHandover(id, reason)
-                    }
-                  />
-
-                  {!session && (
-                    <StartCollectionCard
-                      idPrefix="admin-start"
-                      events={availableEvents}
-                      books={availableBooks}
-                      selectedEventId={selectedEventId}
-                      selectedBookId={selectedBookId}
-                      loading={startSessionLoading}
-                      error={startSessionError}
-                      onEventChange={(value) => {
-                        setSelectedEventId(value);
-                        void loadAvailableBooks(value);
-                      }}
-                      onBookChange={(value) => setSelectedBookId(value)}
-                      onStartCollection={() => void handleStartCollectionSession()}
-                    />
-                  )}
-                </div>
-              )}
             </>
           )}
 
@@ -1112,6 +1085,7 @@ export function DashboardPage() {
             <BuildingsManagementPanel
               organizationId={organizationId}
               eventId={effectiveEventId}
+              initialSubTab={masterDataSubTab}
               onStartCollection={(b, p) => {
                 setActiveTab("collection");
                 setCollectionMode(true);

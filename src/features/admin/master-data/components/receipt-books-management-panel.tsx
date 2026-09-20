@@ -6,9 +6,14 @@ import { Label } from "@/components/ui/label";
 import {
   createReceiptBook,
   fetchOrganizationReceiptBooks,
+  assignReceiptBook,
   type ReceiptBookAdminRecord,
   type ReceiptBookStatus,
 } from "../services/receipt-book-admin.service";
+import {
+  fetchVolunteers,
+  type VolunteerRecord,
+} from "@/features/admin/volunteers/services/volunteer-admin.service";
 
 interface ReceiptBooksManagementPanelProps {
   organizationId: string;
@@ -20,8 +25,10 @@ export function ReceiptBooksManagementPanel({
   eventId,
 }: ReceiptBooksManagementPanelProps) {
   const [books, setBooks] = useState<ReceiptBookAdminRecord[]>([]);
+  const [volunteers, setVolunteers] = useState<VolunteerRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [assigningBookId, setAssigningBookId] = useState<string | null>(null);
 
   // Add Book Modal State
   const [showAddModal, setShowAddModal] = useState(false);
@@ -32,13 +39,20 @@ export function ReceiptBooksManagementPanel({
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  const loadBooks = async () => {
+  const loadData = async () => {
     if (!organizationId) return;
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchOrganizationReceiptBooks(organizationId, eventId);
-      setBooks(data);
+      const [booksData, volsData] = await Promise.all([
+        fetchOrganizationReceiptBooks(organizationId, eventId),
+        fetchVolunteers(organizationId).catch((err) => {
+          console.warn("Could not load volunteers for assignment:", err);
+          return [] as VolunteerRecord[];
+        }),
+      ]);
+      setBooks(booksData);
+      setVolunteers(volsData);
     } catch (err: unknown) {
       console.error("Error loading receipt books:", err);
       setError(err instanceof Error ? err.message : "Failed to load receipt books");
@@ -48,8 +62,23 @@ export function ReceiptBooksManagementPanel({
   };
 
   useEffect(() => {
-    void loadBooks();
+    void loadData();
   }, [organizationId, eventId]);
+
+  const handleAssignVolunteer = async (bookId: string, volunteerId: string | null) => {
+    setAssigningBookId(bookId);
+    setError(null);
+    try {
+      await assignReceiptBook(bookId, volunteerId);
+      await loadData();
+    } catch (err: unknown) {
+      console.error("Assign volunteer error:", err);
+      setError(err instanceof Error ? err.message : "Failed to assign volunteer");
+    } finally {
+      setAssigningBookId(null);
+    }
+  };
+
 
   // Derived Preview calculation
   const parsedStart = parseInt(startNumber, 10);
@@ -118,7 +147,7 @@ export function ReceiptBooksManagementPanel({
       setBookNumber("");
       setStartNumber("");
       setEndNumber("");
-      await loadBooks();
+      await loadData();
     } catch (err: unknown) {
       console.error("Create receipt book error:", err);
       setFormError(err instanceof Error ? err.message : "Failed to create receipt book");
@@ -205,7 +234,7 @@ export function ReceiptBooksManagementPanel({
           </CardTitle>
           <button
             type="button"
-            onClick={loadBooks}
+            onClick={loadData}
             className="text-xs text-primary font-semibold hover:underline cursor-pointer"
           >
             ↻ Refresh
@@ -301,12 +330,50 @@ export function ReceiptBooksManagementPanel({
                       />
                     </div>
                   </div>
+
+                  {/* Volunteer Assignment Controls */}
+                  {(book.status === "available" || book.status === "assigned") && (
+                    <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                        <span className="font-bold">Assign Volunteer:</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <select
+                          data-testid={`assign-select-${book.bookNumber}`}
+                          disabled={assigningBookId === book.receiptBookId}
+                          value={book.assignedVolunteerId || ""}
+                          onChange={(e) =>
+                            handleAssignVolunteer(
+                              book.receiptBookId,
+                              e.target.value ? e.target.value : null
+                            )
+                          }
+                          className="h-8 rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-800 focus:border-primary focus:outline-hidden cursor-pointer"
+                        >
+                          <option value="">-- Available (Unassigned) --</option>
+                          {volunteers
+                            .filter((v) => v.status === "active")
+                            .map((v) => (
+                              <option key={v.volunteerId} value={v.volunteerId}>
+                                👤 {v.fullName} ({v.mobile})
+                              </option>
+                            ))}
+                        </select>
+                        {assigningBookId === book.receiptBookId && (
+                          <span className="text-[11px] text-amber-700 font-bold animate-pulse">
+                            Saving...
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })
           )}
         </CardContent>
       </Card>
+
 
       {/* Register Book Modal */}
       {showAddModal && (
