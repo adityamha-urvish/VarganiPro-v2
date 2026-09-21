@@ -25,7 +25,6 @@ import { RoleNavigation, type NavigationTab } from "@/app/layouts/RoleNavigation
 import { VolunteerManagementPanel } from "@/features/admin/volunteers/components/volunteer-management-panel";
 import { BuildingsManagementPanel } from "@/features/admin/master-data/components/buildings-management-panel";
 import { createBuilding } from "@/features/admin/master-data/services/master-data.service";
-import { SecretaryCommandCenter } from "@/features/analytics/components/secretary-command-center";
 import { VolunteerFinancialLedger } from "@/features/analytics/components/volunteer-financial-ledger";
 import { ReceiptSearchPanel } from "@/features/analytics/components/receipt-search-panel";
 import { CampaignExportPanel } from "@/features/analytics/components/campaign-export-panel";
@@ -267,13 +266,10 @@ export function DashboardPage() {
   const {
     metrics: secretaryMetrics,
     ledger: secretaryLedger,
-    loading: secretaryAnalyticsLoading,
     ledgerLoading: secretaryLedgerLoading,
-    error: secretaryAnalyticsError,
     ledgerError: secretaryLedgerError,
     refreshOverview,
     refreshLedger,
-    refreshAll,
   } = useSecretaryAnalytics({
     eventId: effectiveEventId,
     isAdmin,
@@ -426,43 +422,9 @@ export function DashboardPage() {
                       <span>Dashboard (मुख्य पृष्ठ)</span>
                     </button>
                     <span className="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-md">
-                      👑 Secretary Command Mode
+                      👑 Secretary Collection Mode
                     </span>
                   </div>
-
-                  <SecretaryCommandCenter
-                    metrics={secretaryMetrics}
-                    ledger={secretaryLedger}
-                    buildings={buildings}
-                    recentReceipts={receipts}
-                    pendingSyncCount={pendingReceipts.length}
-                    loading={secretaryAnalyticsLoading}
-                    ledgerLoading={secretaryLedgerLoading}
-                    error={secretaryAnalyticsError}
-                    ledgerError={secretaryLedgerError}
-                    onRefresh={() => {
-                      void refreshAll();
-                      void loadBuildings();
-                    }}
-                    onNavigateTab={(tab) => setActiveTab(tab)}
-                    onViewReceipt={(receipt) => setReceiptToView(receipt)}
-                    onSync={() => void handleSyncNextReceipt()}
-                  />
-
-                  <AdminHandoverPanel
-                    handovers={adminHandovers}
-                    loading={adminHandoverLoading}
-                    error={adminHandoverError}
-                    actionLoadingId={adminActionLoading}
-                    onRefresh={() => {
-                      void loadAdminHandovers();
-                      void refreshLedger();
-                    }}
-                    onVerifyHandover={(id) => void handleVerifyHandover(id)}
-                    onRejectHandover={(id, reason) =>
-                      void handleRejectHandover(id, reason)
-                    }
-                  />
 
                   {!session && (
                     <StartCollectionCard
@@ -919,6 +881,34 @@ export function DashboardPage() {
                   <ReceiptCreationForm
                     propertyId={propertyId}
                     properties={properties}
+                    buildings={buildings}
+                    selectedBuildingId={selectedBuilding?.buildingId || null}
+                    onBuildingIdChange={(bId) => {
+                      if (!bId) {
+                        setSelectedBuilding(null);
+                        setPropertyId(null);
+                      } else {
+                        const found = buildings.find((b) => b.buildingId === bId);
+                        if (found) {
+                          void selectBuilding(found);
+                        }
+                      }
+                    }}
+                    onAddBuilding={async (name, wing) => {
+                      if (!organizationId) return;
+                      const res = await createBuilding({
+                        organizationId,
+                        name,
+                        wing,
+                      });
+                      await loadBuildings();
+                      return res.buildingId;
+                    }}
+                    onAddProperty={async (input) => {
+                      if (!selectedBuilding) return;
+                      const p = await addPropertyDirect(input);
+                      return p?.propertyId;
+                    }}
                     donorName={donorName}
                     donorMobile={donorMobile}
                     amount={amount}

@@ -85,7 +85,8 @@ export interface LocalReceipt {
     | "pending"
     | "syncing"
     | "synced"
-    | "conflict";
+    | "conflict"
+    | "failed";
 
   syncAttempts: number;
   lastSyncAttemptAt: string | null;
@@ -156,6 +157,34 @@ export function generateUUID(): string {
     const v = c === "x" ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
+}
+
+/**
+ * Validates whether a given string is a valid RFC 4122 UUID.
+ */
+export function isValidUUID(val: unknown): boolean {
+  if (typeof val !== "string") return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    val.trim()
+  );
+}
+
+/**
+ * Normalizes an optional UUID field.
+ * Returns trimmed UUID string if valid non-empty, or null if null/undefined/empty string/sentinel.
+ */
+export function normalizeUUID(val: unknown): string | null {
+  if (val === null || val === undefined) return null;
+  if (typeof val !== "string") return null;
+  const trimmed = val.trim();
+  if (
+    trimmed === "" ||
+    trimmed.toLowerCase() === "null" ||
+    trimmed.toLowerCase() === "undefined"
+  ) {
+    return null;
+  }
+  return trimmed;
 }
 
 function openDatabase(): Promise<IDBDatabase> {
@@ -770,6 +799,8 @@ export async function allocateAndCreateLocalReceiptAtomic(
         return;
       }
 
+      const normalizedPropertyId = normalizeUUID(input.propertyId);
+
       const now = new Date().toISOString();
 
       createdReceipt = {
@@ -780,7 +811,7 @@ export async function allocateAndCreateLocalReceiptAtomic(
         receiptBookId: input.receiptBookId,
         volunteerId: input.volunteerId,
         ownerUserId: input.ownerUserId ?? null,
-        propertyId: input.propertyId,
+        propertyId: normalizedPropertyId,
         receiptNumber,
         donorName: input.donorName,
         donorMobile: input.donorMobile,
@@ -932,7 +963,8 @@ export async function updateLocalReceiptSyncState(
     | "pending"
     | "syncing"
     | "synced"
-    | "conflict",
+    | "conflict"
+    | "failed",
   options?: {
     syncAttempts?: number;
     lastSyncAttemptAt?: string | null;
