@@ -4,6 +4,7 @@ import type {
   CachedPropertyProgress,
   LocalReceipt,
 } from "@/lib/offline/offline-db";
+import { updateLocalPropertyProgress } from "@/lib/offline/offline-db";
 import {
   fetchEventBuildingSummaries,
   fetchBuildingPropertiesProgress,
@@ -142,7 +143,25 @@ export function useBuildingCollection({
           notes: null,
         });
 
-        // Update in-memory properties state immediately
+        // 1. Persist updated property progress to IndexedDB
+        try {
+          await updateLocalPropertyProgress(
+            session.eventId,
+            selectedBuilding.buildingId,
+            input.propertyId,
+            {
+              status: "collected",
+              receiptCount: ((selectedProperty.receiptCount || 0) + 1),
+              totalCollectedAmount: ((selectedProperty.totalCollectedAmount || 0) + input.amount),
+              latestReceiptNumber: receipt.receiptNumber,
+              lastReceiptAt: receipt.offlineCreatedAt,
+            }
+          );
+        } catch (dbErr) {
+          console.warn("Failed to update local property progress in IndexedDB:", dbErr);
+        }
+
+        // 2. Update in-memory properties state immediately
         const updatedProps = properties.map((p) => {
           if (p.propertyId === input.propertyId) {
             return {
@@ -161,19 +180,14 @@ export function useBuildingCollection({
         onReceiptCreated(receipt);
         void onReceiptHistoryRefresh(session.receiptBookId);
 
-        // Automatically trigger background queue drain
+        // 3. Automatically trigger background queue drain
         void drainSyncQueue(session.receiptBookId).then(() => {
           void onReceiptHistoryRefresh(session.receiptBookId);
         });
 
-        // Auto-advance pointer to next flat
-        const next = getNextProperty(input.propertyId);
-        if (next) {
-          setSelectedProperty(next);
-        } else {
-          setIsFastReceiptOpen(false);
-          setSelectedProperty(null);
-        }
+        // 4. Close modal and clear selected property (stay on current building grid)
+        setIsFastReceiptOpen(false);
+        setSelectedProperty(null);
       } catch (err: unknown) {
         setFastReceiptError(
           err instanceof Error ? err.message : "Unable to create local receipt"
@@ -187,7 +201,6 @@ export function useBuildingCollection({
       selectedBuilding,
       selectedProperty,
       properties,
-      getNextProperty,
       onReceiptCreated,
       onReceiptHistoryRefresh,
     ]
@@ -225,16 +238,12 @@ export function useBuildingCollection({
       });
       setProperties(updatedProps);
 
-      // Auto-advance to next flat
-      const next = getNextProperty(selectedProperty.propertyId);
-      if (next) {
-        setSelectedProperty(next);
-      } else {
-        setIsFastReceiptOpen(false);
-        setSelectedProperty(null);
-      }
+      // Close modal and drawer, reset property selection
+      setIsPendingDrawerOpen(false);
+      setIsFastReceiptOpen(false);
+      setSelectedProperty(null);
     },
-    [session, selectedBuilding, selectedProperty, properties, getNextProperty]
+    [session, selectedBuilding, selectedProperty, properties]
   );
 
   const addPropertyDirect = useCallback(
@@ -340,6 +349,7 @@ export function useBuildingCollection({
     properties,
     setProperties,
     selectedProperty,
+    setSelectedProperty,
     isFastReceiptOpen,
     setIsFastReceiptOpen,
     isPendingDrawerOpen,

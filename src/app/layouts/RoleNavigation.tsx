@@ -91,7 +91,7 @@ export function RoleNavigation({
       -------------------------------------------------------------- */}
       <nav
         aria-label="Bottom Navigation"
-        className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#FAF5ED]/95 backdrop-blur-md border-t border-amber-900/15 px-2 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] shadow-lg"
+        className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#FAF5ED] border-t border-amber-900/20 px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(0,0,0,0.06)]"
       >
         <div className={`grid gap-1 ${isAdmin ? "grid-cols-6" : "grid-cols-4"}`}>
           {tabs.map((t) => {

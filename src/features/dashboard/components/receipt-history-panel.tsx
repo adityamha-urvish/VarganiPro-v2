@@ -1,5 +1,9 @@
 import { Button } from "@/components/ui/button";
 import type { LocalReceipt } from "@/lib/offline/offline-db";
+import {
+  buildWhatsAppShareUrl,
+  openWhatsAppShare,
+} from "@/features/analytics/utils/whatsapp-share";
 
 export function getStatusLabel(
   status: LocalReceipt["syncStatus"]
@@ -190,8 +194,10 @@ export function ReceiptHistoryPanel({
 
                   <p className="font-medium">
                     {new Date(
-                      receipt.createdAt
-                    ).toLocaleString()}
+                      receipt.createdAt ||
+                      receipt.offlineCreatedAt ||
+                      Date.now()
+                    ).toLocaleString("en-IN")}
                   </p>
                 </div>
 
@@ -218,6 +224,28 @@ export function ReceiptHistoryPanel({
               </div>
 
               <div className="mt-4 flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    const share = buildWhatsAppShareUrl({
+                      receiptNumber: receipt.receiptNumber,
+                      receiptPrefix,
+                      amount: receipt.amount,
+                      paymentMode: receipt.paymentMode,
+                      paymentReference: receipt.paymentReference,
+                      donorName: receipt.donorName,
+                      donorMobile: receipt.donorMobile,
+                      createdAt: receipt.createdAt || receipt.offlineCreatedAt,
+                    });
+                    openWhatsAppShare(share.url);
+                  }}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs cursor-pointer"
+                  title="WhatsApp वर पावती पाठवा"
+                >
+                  📲 WhatsApp
+                </Button>
+
                 <Button
                   type="button"
                   variant="outline"

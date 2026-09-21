@@ -24,6 +24,7 @@ import { BuildingsCollectionScreen } from "../components/buildings-collection-sc
 import { RoleNavigation, type NavigationTab } from "@/app/layouts/RoleNavigation";
 import { VolunteerManagementPanel } from "@/features/admin/volunteers/components/volunteer-management-panel";
 import { BuildingsManagementPanel } from "@/features/admin/master-data/components/buildings-management-panel";
+import { createBuilding } from "@/features/admin/master-data/services/master-data.service";
 import { SecretaryCommandCenter } from "@/features/analytics/components/secretary-command-center";
 import { VolunteerFinancialLedger } from "@/features/analytics/components/volunteer-financial-ledger";
 import { ReceiptSearchPanel } from "@/features/analytics/components/receipt-search-panel";
@@ -131,6 +132,7 @@ export function DashboardPage() {
     setSelectedBuilding,
     properties,
     selectedProperty,
+    setSelectedProperty,
     isFastReceiptOpen,
     setIsFastReceiptOpen,
     isPendingDrawerOpen,
@@ -326,6 +328,8 @@ export function DashboardPage() {
       <RoleNavigation
         activeTab={activeTab}
         onTabChange={(tab) => {
+          setIsFastReceiptOpen(false);
+          setSelectedProperty(null);
           setActiveTab(tab);
           if (tab === "collection") {
             setVolunteerSubView("home");
@@ -362,6 +366,8 @@ export function DashboardPage() {
                 hasActiveSession={Boolean(session && session.sessionStatus === "open")}
                 pendingSyncCount={pendingReceipts.length}
                 onStartCollection={() => {
+                  setIsFastReceiptOpen(false);
+                  setSelectedProperty(null);
                   setCollectionMode(true);
                   if (session && session.sessionStatus === "open" && !selectedBuilding) {
                     setVolunteerSubView("buildings");
@@ -370,11 +376,15 @@ export function DashboardPage() {
                   }
                 }}
                 onStartGeneralReceipt={() => {
+                  setIsFastReceiptOpen(false);
+                  setSelectedProperty(null);
                   setActiveTab("collection");
                   setCollectionMode(true);
                   setSelectedBuilding(null);
                 }}
                 onNavigateTab={(tab) => {
+                  setIsFastReceiptOpen(false);
+                  setSelectedProperty(null);
                   setActiveTab(tab);
                   if (tab === "collection") {
                     setCollectionMode(false);
@@ -554,6 +564,34 @@ export function DashboardPage() {
                             <ReceiptCreationForm
                               propertyId={propertyId}
                               properties={properties}
+                              buildings={buildings}
+                              selectedBuildingId={null}
+                              onBuildingIdChange={(bId) => {
+                                if (!bId) {
+                                  setSelectedBuilding(null);
+                                  setPropertyId(null);
+                                } else {
+                                  const found = buildings.find((b) => b.buildingId === bId);
+                                  if (found) {
+                                    void selectBuilding(found);
+                                  }
+                                }
+                              }}
+                              onAddBuilding={async (name, wing) => {
+                                if (!organizationId) return;
+                                const res = await createBuilding({
+                                  organizationId,
+                                  name,
+                                  wing,
+                                });
+                                await loadBuildings();
+                                return res.buildingId;
+                              }}
+                              onAddProperty={async (input) => {
+                                if (!selectedBuilding) return;
+                                const p = await addPropertyDirect(input);
+                                return p?.propertyId;
+                              }}
                               donorName={donorName}
                               donorMobile={donorMobile}
                               amount={amount}
@@ -759,6 +797,34 @@ export function DashboardPage() {
                       <ReceiptCreationForm
                         propertyId={propertyId}
                         properties={properties}
+                        buildings={buildings}
+                        selectedBuildingId={selectedBuilding?.buildingId || null}
+                        onBuildingIdChange={(bId) => {
+                          if (!bId) {
+                            setSelectedBuilding(null);
+                            setPropertyId(null);
+                          } else {
+                            const found = buildings.find((b) => b.buildingId === bId);
+                            if (found) {
+                              void selectBuilding(found);
+                            }
+                          }
+                        }}
+                        onAddBuilding={async (name, wing) => {
+                          if (!organizationId) return;
+                          const res = await createBuilding({
+                            organizationId,
+                            name,
+                            wing,
+                          });
+                          await loadBuildings();
+                          return res.buildingId;
+                        }}
+                        onAddProperty={async (input) => {
+                          if (!selectedBuilding) return;
+                          const p = await addPropertyDirect(input);
+                          return p?.propertyId;
+                        }}
                         donorName={donorName}
                         donorMobile={donorMobile}
                         amount={amount}
@@ -785,32 +851,6 @@ export function DashboardPage() {
                       />
                     </div>
                   )}
-
-                  {/* MODALS */}
-                  <FastReceiptModal
-                    isOpen={isFastReceiptOpen}
-                    buildingName={selectedBuilding?.buildingName || ""}
-                    property={selectedProperty}
-                    nextProperty={getNextProperty(selectedProperty?.propertyId)}
-                    currentReceiptNumber={session?.currentNumber || 1}
-                    startNumber={session?.startNumber || 1}
-                    endNumber={session?.endNumber || 100}
-                    creating={fastReceiptCreating}
-                    createError={fastReceiptError}
-                    onClose={() => setIsFastReceiptOpen(false)}
-                    onNavigateToCloseSession={() => {
-                      setVolunteerSubView("session");
-                    }}
-                    onSubmitReceipt={submitFastReceipt}
-                    onOpenPendingDrawer={() => setIsPendingDrawerOpen(true)}
-                  />
-
-                  <PendingReasonDrawer
-                    unitNumber={selectedProperty?.unitNumber || ""}
-                    isOpen={isPendingDrawerOpen}
-                    onClose={() => setIsPendingDrawerOpen(false)}
-                    onSubmitReason={(reason, time, notes) => void submitFollowUp(reason, time, notes)}
-                  />
                 </>
               )}
 
@@ -853,31 +893,6 @@ export function DashboardPage() {
                           onAddProperty={addPropertyDirect}
                         />
                       )}
-
-                      <FastReceiptModal
-                        isOpen={isFastReceiptOpen}
-                        buildingName={selectedBuilding?.buildingName || ""}
-                        property={selectedProperty}
-                        nextProperty={getNextProperty(selectedProperty?.propertyId)}
-                        currentReceiptNumber={session.currentNumber}
-                        startNumber={session.startNumber}
-                        endNumber={session.endNumber}
-                        creating={fastReceiptCreating}
-                        createError={fastReceiptError}
-                        onClose={() => setIsFastReceiptOpen(false)}
-                        onNavigateToCloseSession={() => {
-                          setSelectedBuilding(null);
-                        }}
-                        onSubmitReceipt={submitFastReceipt}
-                        onOpenPendingDrawer={() => setIsPendingDrawerOpen(true)}
-                      />
-
-                      <PendingReasonDrawer
-                        unitNumber={selectedProperty?.unitNumber || ""}
-                        isOpen={isPendingDrawerOpen}
-                        onClose={() => setIsPendingDrawerOpen(false)}
-                        onSubmitReason={(reason, time, notes) => void submitFollowUp(reason, time, notes)}
-                      />
                     </>
                   )}
 
@@ -1237,6 +1252,41 @@ export function DashboardPage() {
           )}
         </div>
       )}
+
+      {/* Global Fast Receipt Modal */}
+      <FastReceiptModal
+        isOpen={isFastReceiptOpen}
+        buildingName={selectedBuilding?.buildingName || ""}
+        property={selectedProperty}
+        nextProperty={getNextProperty(selectedProperty?.propertyId)}
+        currentReceiptNumber={session?.currentNumber || 1}
+        startNumber={session?.startNumber || 1}
+        endNumber={session?.endNumber || 100}
+        hasActiveSession={Boolean(session && session.sessionStatus === "open")}
+        creating={fastReceiptCreating}
+        createError={fastReceiptError}
+        onClose={() => {
+          setIsFastReceiptOpen(false);
+          setSelectedProperty(null);
+        }}
+        onNavigateToCloseSession={() => {
+          setVolunteerSubView("session");
+        }}
+        onStartSession={() => {
+          setActiveTab("collection");
+          setCollectionMode(true);
+          setVolunteerSubView("home");
+        }}
+        onSubmitReceipt={submitFastReceipt}
+        onOpenPendingDrawer={() => setIsPendingDrawerOpen(true)}
+      />
+
+      <PendingReasonDrawer
+        unitNumber={selectedProperty?.unitNumber || ""}
+        isOpen={isPendingDrawerOpen}
+        onClose={() => setIsPendingDrawerOpen(false)}
+        onSubmitReason={(reason, time, notes) => void submitFollowUp(reason, time, notes)}
+      />
 
       {/* Global Preview Modal */}
       <ReceiptPreviewDialog

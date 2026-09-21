@@ -12,10 +12,12 @@ export interface FastReceiptModalProps {
   currentReceiptNumber: number;
   startNumber?: number;
   endNumber?: number;
+  hasActiveSession?: boolean;
   creating: boolean;
   createError: string | null;
   onClose: () => void;
   onNavigateToCloseSession?: () => void;
+  onStartSession?: () => void;
   onSubmitReceipt: (input: {
     propertyId: string;
     amount: number;
@@ -31,14 +33,16 @@ export function FastReceiptModal({
   isOpen,
   buildingName,
   property,
-  nextProperty,
+  nextProperty: _nextProperty,
   currentReceiptNumber,
   startNumber,
   endNumber,
+  hasActiveSession = true,
   creating,
   createError,
   onClose,
   onNavigateToCloseSession,
+  onStartSession,
   onSubmitReceipt,
   onOpenPendingDrawer,
 }: FastReceiptModalProps) {
@@ -120,9 +124,56 @@ export function FastReceiptModal({
         </div>
 
         {/* -------------------------------------------------------------
-            EXHAUSTED RECEIPT BOOK VIEW
+            NO ACTIVE SESSION VIEW
         -------------------------------------------------------------- */}
-        {isExhausted ? (
+        {!hasActiveSession ? (
+          <div className="space-y-4">
+            <div className="rounded-xl border-2 border-amber-500/40 bg-amber-500/10 p-4 space-y-3">
+              <div className="flex items-center gap-2.5">
+                <span className="text-2xl">⚠️</span>
+                <div>
+                  <h4 className="text-base font-black text-amber-950 dark:text-amber-100">
+                    सक्रिय संकलन सत्र नाही
+                  </h4>
+                  <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">
+                    No Active Collection Session
+                  </p>
+                </div>
+              </div>
+
+              <div className="text-xs text-amber-900 dark:text-amber-200 space-y-1.5 border-t border-amber-500/20 pt-2.5">
+                <p className="text-xs text-amber-800 dark:text-amber-300">
+                  पावती तयार करण्यासाठी प्रथम संकलन सत्र सुरू करा किंवा उपलब्ध पावती पुस्तक निवडा.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-2">
+              {onStartSession && (
+                <Button
+                  type="button"
+                  variant="default"
+                  onClick={() => {
+                    onClose();
+                    onStartSession();
+                  }}
+                  className="w-full h-12 rounded-xl text-sm font-bold shadow-md cursor-pointer bg-orange-600 hover:bg-orange-700 text-white"
+                >
+                  ⚡ संकलन सत्र सुरू करा / Start Collection →
+                </Button>
+              )}
+
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onClose}
+                className="w-full h-10 text-xs font-semibold"
+              >
+                रद्द करा / Cancel
+              </Button>
+            </div>
+          </div>
+        ) : isExhausted ? (
           <div className="space-y-4">
             <div className="rounded-xl border-2 border-amber-500/40 bg-amber-500/10 p-4 space-y-3">
               <div className="flex items-center gap-2.5">
@@ -363,8 +414,6 @@ export function FastReceiptModal({
                 ? "Creating Receipt..."
                 : isAddingAdditional
                 ? `➕ Issue Additional Receipt #${currentReceiptNumber} ✓`
-                : nextProperty
-                ? `⚡ Collect & Next: Flat ${nextProperty.unitNumber} →`
                 : `⚡ Collect Receipt #${currentReceiptNumber} ✓`}
             </Button>
 

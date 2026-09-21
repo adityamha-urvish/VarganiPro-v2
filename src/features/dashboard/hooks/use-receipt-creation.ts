@@ -115,13 +115,9 @@ export function useReceiptCreation({
       setNotes("");
 
       /*
-       * Automatic single-flight background sync.
+       * Synchronize next receipt sequentially, then drain remaining queue.
        */
       try {
-        void drainSyncQueue(session.receiptBookId).then(async () => {
-          await onReceiptHistoryRefresh?.(session.receiptBookId);
-        });
-
         const syncResult = await syncNextReceipt(session.receiptBookId);
 
         /*
@@ -155,6 +151,10 @@ export function useReceiptCreation({
           } else {
             setSyncMessage("Receipt created and synced successfully.");
           }
+
+          void drainSyncQueue(session.receiptBookId).then(async () => {
+            await onReceiptHistoryRefresh?.(session.receiptBookId);
+          });
         } else if (syncResult.conflict) {
           setSyncMessage(
             "Receipt created locally, but synchronization requires attention."

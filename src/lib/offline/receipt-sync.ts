@@ -2,6 +2,7 @@ import { supabase } from "@/supabase/client";
 
 import {
   getLocalReceipts,
+  getPendingReceiptsForOwner,
   updateLocalReceiptSyncState,
   type LocalReceipt,
 } from "./offline-db";
@@ -135,7 +136,27 @@ export async function syncNextReceipt(
     };
   }
 
-  const response = data as SyncResponse;
+  const response = (data as SyncResponse) || null;
+
+  if (!response || typeof response !== "object") {
+    await updateLocalReceiptSyncState(
+      receipt.clientReceiptId,
+      "pending",
+      {
+        syncAttempts: nextAttempt,
+        lastSyncAttemptAt: attemptTime,
+        lastSyncError: "Empty or invalid response from sync RPC",
+      }
+    );
+
+    return {
+      receipt,
+      success: false,
+      alreadyExists: false,
+      conflict: false,
+      response,
+    };
+  }
 
   /*
    * Receipt-number conflict.
@@ -274,11 +295,33 @@ export async function drainSyncQueue(
 }
 
 /**
+ * Drains all pending sync queues across all stored receipt books.
+ */
+export async function drainAllPendingSyncQueues(
+  ownerUserId?: string,
+  onProgress?: () => void
+): Promise<void> {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    return;
+  }
+
+  try {
+    const allPending = await getPendingReceiptsForOwner(ownerUserId);
+    const bookIds = Array.from(new Set(allPending.map((r) => r.receiptBookId)));
+    for (const bookId of bookIds) {
+      await drainSyncQueue(bookId, ownerUserId, onProgress);
+    }
+  } catch (err) {
+    console.warn("Failed to drain all pending queues:", err);
+  }
+}
+
+/**
  * Sets up automatic background sync on window 'online' event.
  * Returns an unsubscribe cleanup callback.
  */
 export function setupAutoSync(
-  receiptBookId: string,
+  receiptBookId?: string,
   ownerUserId?: string,
   onSyncComplete?: () => void
 ): () => void {
@@ -287,12 +330,29 @@ export function setupAutoSync(
   }
 
   const handleOnline = () => {
-    void drainSyncQueue(receiptBookId, ownerUserId, onSyncComplete).then(() => {
+    if (receiptBookId) {
+      void drainSyncQueue(receiptBookId, ownerUserId, onSyncComplete).then(() => {
+        onSyncComplete?.();
+      });
+    }
+    void drainAllPendingSyncQueues(ownerUserId, onSyncComplete).then(() => {
       onSyncComplete?.();
     });
   };
 
   window.addEventListener("online", handleOnline);
+
+  // If already online at the time setup is called, trigger initial drain
+  if (typeof navigator !== "undefined" && navigator.onLine) {
+    if (receiptBookId) {
+      void drainSyncQueue(receiptBookId, ownerUserId, onSyncComplete).then(() => {
+        onSyncComplete?.();
+      });
+    }
+    void drainAllPendingSyncQueues(ownerUserId, onSyncComplete).then(() => {
+      onSyncComplete?.();
+    });
+  }
 
   return () => {
     window.removeEventListener("online", handleOnline);

@@ -244,37 +244,7 @@ export function AppLayout({
         {children}
       </main>
 
-      {/* -------------------------------------------------------------
-          MOBILE BOTTOM NAVIGATION BAR (ADMIN ONLY)
-      -------------------------------------------------------------- */}
-      {isAdmin && onTabChange && (
-        <nav
-          aria-label="Bottom Navigation"
-          className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/80 px-2 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] shadow-lg"
-        >
-          <div className="grid gap-1 grid-cols-4">
-            {navItems.map((item) => {
-              const isActive = activeTab === item.id;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  data-testid={`mobile-nav-tab-${item.id}`}
-                  onClick={() => onTabChange(item.id)}
-                  className={`min-h-[50px] py-1 px-2 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer ${
-                    isActive
-                      ? "text-orange-600 font-bold bg-orange-50"
-                      : "text-slate-600 hover:text-slate-900 font-medium"
-                  }`}
-                >
-                  <span className="text-lg leading-none">{item.icon}</span>
-                  <span className="text-[11px] mt-1">{item.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </nav>
-      )}
+
 
       {/* -------------------------------------------------------------
           PENDING RECEIPTS LOGOUT WARNING MODAL

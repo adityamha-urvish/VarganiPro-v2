@@ -1,9 +1,12 @@
-import type { FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-import type { CachedPropertyProgress } from "@/lib/offline/offline-db";
+import type {
+  CachedBuildingSummary,
+  CachedPropertyProgress,
+} from "@/lib/offline/offline-db";
 
 export type PaymentMode =
   | "cash"
@@ -14,6 +17,16 @@ export type PaymentMode =
 export type ReceiptCreationFormProps = {
   propertyId?: string | null;
   properties?: CachedPropertyProgress[];
+  buildings?: CachedBuildingSummary[];
+  selectedBuildingId?: string | null;
+  onBuildingIdChange?: (value: string | null) => void;
+  onAddBuilding?: (name: string, wing?: string) => Promise<string | void>;
+  onAddProperty?: (input: {
+    unitNumber: string;
+    floorNumber?: number | null;
+    ownerName?: string;
+    contactMobile?: string;
+  }) => Promise<string | void>;
   donorName: string;
   donorMobile: string;
   amount: string;
@@ -40,6 +53,11 @@ export type ReceiptCreationFormProps = {
 export function ReceiptCreationForm({
   propertyId,
   properties,
+  buildings,
+  selectedBuildingId,
+  onBuildingIdChange,
+  onAddBuilding,
+  onAddProperty,
   donorName,
   donorMobile,
   amount,
@@ -63,6 +81,65 @@ export function ReceiptCreationForm({
   onSubmit,
 }: ReceiptCreationFormProps) {
   const isExhausted = endNumber !== undefined && currentReceiptNumber > endNumber;
+
+  // Inline Building Add State
+  const [showAddBuilding, setShowAddBuilding] = useState(false);
+  const [newBuildingName, setNewBuildingName] = useState("");
+  const [newBuildingWing, setNewBuildingWing] = useState("");
+  const [addingBuilding, setAddingBuilding] = useState(false);
+  const [buildingAddError, setBuildingAddError] = useState<string | null>(null);
+
+  // Inline Flat Add State
+  const [showAddFlat, setShowAddFlat] = useState(false);
+  const [newUnitNumber, setNewUnitNumber] = useState("");
+  const [newFloorNumber, setNewFloorNumber] = useState("");
+  const [newOwnerName, setNewOwnerName] = useState("");
+  const [addingFlat, setAddingFlat] = useState(false);
+  const [flatAddError, setFlatAddError] = useState<string | null>(null);
+
+  async function handleSaveNewBuilding() {
+    if (!newBuildingName.trim()) return;
+    setAddingBuilding(true);
+    setBuildingAddError(null);
+    try {
+      const createdId = await onAddBuilding?.(newBuildingName.trim(), newBuildingWing.trim() || undefined);
+      if (createdId && typeof createdId === "string") {
+        onBuildingIdChange?.(createdId);
+      }
+      setNewBuildingName("");
+      setNewBuildingWing("");
+      setShowAddBuilding(false);
+    } catch (err) {
+      setBuildingAddError(err instanceof Error ? err.message : "Failed to add building");
+    } finally {
+      setAddingBuilding(false);
+    }
+  }
+
+  async function handleSaveNewFlat() {
+    if (!newUnitNumber.trim()) return;
+    setAddingFlat(true);
+    setFlatAddError(null);
+    try {
+      const createdId = await onAddProperty?.({
+        unitNumber: newUnitNumber.trim(),
+        floorNumber: newFloorNumber ? parseInt(newFloorNumber, 10) : null,
+        ownerName: newOwnerName.trim() || undefined,
+      });
+      if (createdId && typeof createdId === "string") {
+        onPropertyIdChange?.(createdId);
+      }
+      setNewUnitNumber("");
+      setNewFloorNumber("");
+      setNewOwnerName("");
+      setShowAddFlat(false);
+    } catch (err) {
+      setFlatAddError(err instanceof Error ? err.message : "Failed to add flat");
+    } finally {
+      setAddingFlat(false);
+    }
+  }
+
   return (
     <form
       onSubmit={onSubmit}
@@ -117,15 +194,129 @@ export function ReceiptCreationForm({
           </div>
         )}
 
-        {/* Optional Property / Flat Linkage */}
-        {properties && properties.length > 0 && (
-          <div>
-            <label
-              htmlFor="propertyId"
-              className="mb-2 block text-sm font-medium text-foreground"
+        {/* -------------------------------------------------------------
+            1. BUILDING SELECTOR & INLINE ADD
+        -------------------------------------------------------------- */}
+        {buildings && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label
+                htmlFor="buildingSelect"
+                className="block text-sm font-medium text-foreground"
+              >
+                🏢 Building / Apartment (इमारत)
+              </label>
+              {onAddBuilding && !showAddBuilding && (
+                <button
+                  type="button"
+                  onClick={() => setShowAddBuilding(true)}
+                  className="text-xs font-bold text-orange-600 hover:text-orange-700 hover:underline cursor-pointer"
+                >
+                  ＋ Add Building
+                </button>
+              )}
+            </div>
+
+            <select
+              id="buildingSelect"
+              value={selectedBuildingId || ""}
+              disabled={isExhausted || creating}
+              onChange={(event) => {
+                const bId = event.target.value || null;
+                onBuildingIdChange?.(bId);
+                if (!bId) {
+                  onPropertyIdChange?.(null);
+                }
+              }}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring disabled:opacity-50"
             >
-              Link to Flat / Property (Optional)
-            </label>
+              <option value="">-- No Building (General Donation / इतर वर्गणी) --</option>
+              {buildings.map((b) => (
+                <option key={b.buildingId} value={b.buildingId}>
+                  {b.buildingName}{b.wing ? ` (Wing ${b.wing})` : ""}
+                </option>
+              ))}
+            </select>
+
+            {/* Inline Add Building Box */}
+            {showAddBuilding && (
+              <div className="rounded-xl border border-amber-300 bg-amber-50/70 p-3 space-y-2.5 animate-in fade-in">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-amber-900">🏢 नवीन इमारत जोडा (Add New Building)</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddBuilding(false)}
+                    className="text-xs text-slate-500 hover:text-slate-800"
+                  >
+                    ✕ Cancel
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <Input
+                    type="text"
+                    placeholder="Building Name (e.g. Gokul Dham)"
+                    value={newBuildingName}
+                    onChange={(e) => setNewBuildingName(e.target.value)}
+                    className="h-8 text-xs bg-white"
+                  />
+                  <Input
+                    type="text"
+                    placeholder="Wing (Optional, e.g. A)"
+                    value={newBuildingWing}
+                    onChange={(e) => setNewBuildingWing(e.target.value)}
+                    className="h-8 text-xs bg-white"
+                  />
+                </div>
+                {buildingAddError && (
+                  <p className="text-[11px] text-red-600 font-medium">{buildingAddError}</p>
+                )}
+                <div className="flex justify-end gap-2 pt-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowAddBuilding(false)}
+                    className="h-7 text-xs"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={addingBuilding || !newBuildingName.trim()}
+                    onClick={() => void handleSaveNewBuilding()}
+                    className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white font-bold"
+                  >
+                    {addingBuilding ? "Adding..." : "Save & Select Building"}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* -------------------------------------------------------------
+            2. FLAT / PROPERTY SELECTOR & INLINE ADD
+        -------------------------------------------------------------- */}
+        {(properties || selectedBuildingId) && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label
+                htmlFor="propertyId"
+                className="block text-sm font-medium text-foreground"
+              >
+                🚪 Flat / Property (सदनिका क्रमांक)
+              </label>
+              {onAddProperty && selectedBuildingId && !showAddFlat && (
+                <button
+                  type="button"
+                  onClick={() => setShowAddFlat(true)}
+                  className="text-xs font-bold text-orange-600 hover:text-orange-700 hover:underline cursor-pointer"
+                >
+                  ＋ Add Flat
+                </button>
+              )}
+            </div>
 
             <select
               id="propertyId"
@@ -137,12 +328,74 @@ export function ReceiptCreationForm({
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring disabled:opacity-50"
             >
               <option value="">-- General / Non-Property Donation --</option>
-              {properties.map((p) => (
+              {(properties || []).map((p) => (
                 <option key={p.propertyId} value={p.propertyId}>
-                  Flat {p.unitNumber} {p.ownerName ? `(${p.ownerName})` : ""}
+                  Flat {p.unitNumber} {p.ownerName ? `(${p.ownerName})` : ""} {p.status === "collected" ? "✓" : ""}
                 </option>
               ))}
             </select>
+
+            {/* Inline Add Flat Box */}
+            {showAddFlat && (
+              <div className="rounded-xl border border-amber-300 bg-amber-50/70 p-3 space-y-2.5 animate-in fade-in">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-amber-900">🚪 नवीन सदनिका जोडा (Add New Flat)</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddFlat(false)}
+                    className="text-xs text-slate-500 hover:text-slate-800"
+                  >
+                    ✕ Cancel
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <Input
+                    type="text"
+                    placeholder="Flat Number (e.g. 101)"
+                    value={newUnitNumber}
+                    onChange={(e) => setNewUnitNumber(e.target.value)}
+                    className="h-8 text-xs bg-white"
+                  />
+                  <Input
+                    type="number"
+                    placeholder="Floor (Optional)"
+                    value={newFloorNumber}
+                    onChange={(e) => setNewFloorNumber(e.target.value)}
+                    className="h-8 text-xs bg-white"
+                  />
+                  <Input
+                    type="text"
+                    placeholder="Owner Name (Optional)"
+                    value={newOwnerName}
+                    onChange={(e) => setNewOwnerName(e.target.value)}
+                    className="h-8 text-xs bg-white"
+                  />
+                </div>
+                {flatAddError && (
+                  <p className="text-[11px] text-red-600 font-medium">{flatAddError}</p>
+                )}
+                <div className="flex justify-end gap-2 pt-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowAddFlat(false)}
+                    className="h-7 text-xs"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={addingFlat || !newUnitNumber.trim()}
+                    onClick={() => void handleSaveNewFlat()}
+                    className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white font-bold"
+                  >
+                    {addingFlat ? "Adding..." : "Save & Select Flat"}
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

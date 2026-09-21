@@ -6,6 +6,8 @@ import { DashboardPage } from "@/features/dashboard/pages/dashboard-page";
 import { AppLayout } from "@/app/layouts/AppLayout";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 
+import { ErrorBoundary } from "@/components/ui/error-boundary";
+
 export function ProtectedRoute({
   children,
 }: {
@@ -47,7 +49,9 @@ export const router = createBrowserRouter([
     element: (
       <ProtectedRoute>
         <AppLayout>
-          <DashboardPage />
+          <ErrorBoundary name="Dashboard">
+            <DashboardPage />
+          </ErrorBoundary>
         </AppLayout>
       </ProtectedRoute>
     ),

@@ -66,6 +66,7 @@ export function ReceiptPreviewDialog({
     voidReason: string;
     voidedAt: string;
   } | null>(null);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
 
   if (!receipt) {
     return null;
@@ -112,8 +113,6 @@ export function ReceiptPreviewDialog({
       setShareSuccessNotice("WhatsApp उघडले (WhatsApp opened).");
     }
   }
-
-  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
 
   async function handleDownloadJpg() {
     if (!receipt) return;
@@ -353,7 +352,7 @@ export function ReceiptPreviewDialog({
                     isVoided ? "line-through text-muted-foreground" : ""
                   }`}
                 >
-                  ₹{receipt.amount.toFixed(2)}
+                  ₹{Number(receipt.amount || 0).toFixed(2)}
                 </span>
               </div>
 
@@ -362,7 +361,7 @@ export function ReceiptPreviewDialog({
                   Payment Mode
                 </span>
                 <span className="text-right font-medium capitalize">
-                  {receipt.paymentMode.replace("_", " ")}
+                  {(receipt.paymentMode || (receipt as unknown as { payment_mode?: string }).payment_mode || "cash").replace("_", " ")}
                 </span>
               </div>
 
@@ -378,7 +377,12 @@ export function ReceiptPreviewDialog({
               <div className="flex justify-between gap-6">
                 <span className="text-sm text-muted-foreground">Date & Time</span>
                 <span className="text-right font-medium">
-                  {new Date(receipt.createdAt).toLocaleString()}
+                  {new Date(
+                    receipt.createdAt ||
+                    receipt.offlineCreatedAt ||
+                    (receipt as unknown as { created_at?: string }).created_at ||
+                    Date.now()
+                  ).toLocaleString("en-IN")}
                 </span>
               </div>
             </div>
