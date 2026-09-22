@@ -37,15 +37,18 @@ import { useDashboardBootstrap } from "../hooks/use-dashboard-bootstrap";
 import { useReceiptCreation } from "../hooks/use-receipt-creation";
 import { useReceiptHistory } from "../hooks/use-receipt-history";
 import { useStartCollection } from "../hooks/use-start-collection";
+import { useDashboardNavigation } from "../hooks/use-dashboard-navigation";
 import { useVolunteerHandover } from "../hooks/use-volunteer-handover";
 import { printReceipt } from "../utils/print-receipt";
 import { calculateReceiptAggregates } from "../utils/receipt-aggregates";
 
 export function DashboardPage() {
-  const [activeTab, setActiveTab] = useState<NavigationTab>("collection");
-  const [collectionMode, setCollectionMode] = useState(false);
+  const nav = useDashboardNavigation();
+  const activeTab: NavigationTab =
+    nav.tab === "buildings" ? "masterData" : nav.tab;
+  const collectionMode = nav.mode === "collect";
+
   const [volunteerSubView, setVolunteerSubView] = useState<"home" | "buildings" | "history" | "handover" | "session">("home");
-  const [masterDataSubTab, setMasterDataSubTab] = useState<"buildings" | "shops" | "books">("buildings");
   const [receiptToView, setReceiptToView] =
     useState<LocalReceipt | null>(null);
 
@@ -166,6 +169,80 @@ export function DashboardPage() {
     onReceiptHistoryRefresh: loadReceiptHistory,
   });
 
+  // Sync nav.buildingId with selectedBuilding
+  useEffect(() => {
+    if (nav.buildingId && buildings.length > 0) {
+      if (selectedBuilding?.buildingId !== nav.buildingId) {
+        const found = buildings.find((b) => b.buildingId === nav.buildingId);
+        if (found) {
+          void selectBuilding(found);
+        }
+      }
+    } else if (!nav.buildingId && selectedBuilding) {
+      setSelectedBuilding(null);
+    }
+  }, [nav.buildingId, buildings, selectedBuilding, selectBuilding, setSelectedBuilding]);
+
+  // Sync nav.flatId with selectedProperty & isFastReceiptOpen
+  useEffect(() => {
+    if (nav.flatId && properties.length > 0) {
+      if (selectedProperty?.propertyId !== nav.flatId) {
+        const found = properties.find((p) => p.propertyId === nav.flatId);
+        if (found) {
+          openPropertyReceipt(found);
+        }
+      }
+    } else if (!nav.flatId && isFastReceiptOpen) {
+      setIsFastReceiptOpen(false);
+      setSelectedProperty(null);
+    }
+  }, [nav.flatId, properties, selectedProperty, isFastReceiptOpen, openPropertyReceipt, setIsFastReceiptOpen, setSelectedProperty]);
+
+  function handleTabChange(tab: NavigationTab) {
+    setIsFastReceiptOpen(false);
+    setSelectedProperty(null);
+    setSelectedBuilding(null);
+    if (tab === "collection") {
+      nav.resetToHome();
+      setVolunteerSubView("home");
+    } else if (tab === "masterData" || tab === "buildings") {
+      nav.setTab("masterData");
+    } else {
+      nav.setTab(tab);
+    }
+  }
+
+  function handleSelectBuilding(b: typeof selectedBuilding) {
+    if (!b) return;
+    void selectBuilding(b);
+    nav.selectBuildingId(b.buildingId);
+  }
+
+  function handleBackFromBuilding() {
+    setSelectedBuilding(null);
+    nav.selectBuildingId(null);
+  }
+
+  function handleSelectProperty(p: typeof selectedProperty) {
+    if (!p) return;
+    openPropertyReceipt(p);
+    nav.selectFlatId(p.propertyId);
+  }
+
+  function handleCloseFastReceipt() {
+    setIsFastReceiptOpen(false);
+    setSelectedProperty(null);
+    nav.selectFlatId(null);
+  }
+
+  function handleBackToDashboard() {
+    setSelectedBuilding(null);
+    setSelectedProperty(null);
+    setIsFastReceiptOpen(false);
+    nav.resetToHome();
+    setVolunteerSubView("home");
+  }
+
   useEffect(() => {
     if (!session?.receiptBookId) return;
     const unsubscribe = setupAutoSync(session.receiptBookId, undefined, () => {
@@ -256,7 +333,7 @@ export function DashboardPage() {
       await ensureOfflineBookState(newSession);
       await loadReceiptHistory(newSession.receiptBookId);
       setHandover(null);
-      setCollectionMode(true);
+      nav.openCollectMode();
     },
   });
 
@@ -323,14 +400,7 @@ export function DashboardPage() {
       {/* Role Navigation (Desktop tabs for all, Mobile bottom bar for Admin) */}
       <RoleNavigation
         activeTab={activeTab}
-        onTabChange={(tab) => {
-          setIsFastReceiptOpen(false);
-          setSelectedProperty(null);
-          setActiveTab(tab);
-          if (tab === "collection") {
-            setVolunteerSubView("home");
-          }
-        }}
+        onTabChange={handleTabChange}
         isAdmin={isAdmin}
         pendingSyncCount={pendingReceipts.length}
       />
@@ -364,7 +434,7 @@ export function DashboardPage() {
                 onStartCollection={() => {
                   setIsFastReceiptOpen(false);
                   setSelectedProperty(null);
-                  setCollectionMode(true);
+                  nav.openCollectMode(session && session.sessionStatus === "open" && selectedBuilding ? selectedBuilding.buildingId : null);
                   if (session && session.sessionStatus === "open" && !selectedBuilding) {
                     setVolunteerSubView("buildings");
                   } else {
@@ -374,32 +444,21 @@ export function DashboardPage() {
                 onStartGeneralReceipt={() => {
                   setIsFastReceiptOpen(false);
                   setSelectedProperty(null);
-                  setActiveTab("collection");
-                  setCollectionMode(true);
                   setSelectedBuilding(null);
+                  nav.openCollectMode(null);
                 }}
-                onNavigateTab={(tab) => {
-                  setIsFastReceiptOpen(false);
-                  setSelectedProperty(null);
-                  setActiveTab(tab);
-                  if (tab === "collection") {
-                    setCollectionMode(false);
-                    setVolunteerSubView("home");
-                  }
-                }}
-                onNavigateToHistory={() => setActiveTab("history")}
-                onNavigateToHandover={() => setActiveTab("handovers")}
+                onNavigateTab={(tab) => handleTabChange(tab)}
+                onNavigateToHistory={() => handleTabChange("history")}
+                onNavigateToHandover={() => handleTabChange("handovers")}
                 onNavigateToBooks={() => {
-                  setMasterDataSubTab("books");
-                  setActiveTab("masterData");
+                  nav.setTab("masterData");
                 }}
                 onNavigateToSessionDetails={() => {
-                  setCollectionMode(true);
+                  nav.openCollectMode();
                   setVolunteerSubView("session");
                 }}
                 onChangeBuilding={() => {
-                  setMasterDataSubTab("buildings");
-                  setActiveTab("masterData");
+                  nav.setTab("masterData");
                 }}
               />
             </>
@@ -415,7 +474,7 @@ export function DashboardPage() {
                     <button
                       type="button"
                       data-testid="admin-back-dashboard"
-                      onClick={() => setCollectionMode(false)}
+                      onClick={handleBackToDashboard}
                       className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-slate-950 bg-white border border-slate-200/80 px-3 py-1.5 rounded-xl shadow-2xs cursor-pointer"
                     >
                       <span>←</span>
@@ -459,7 +518,7 @@ export function DashboardPage() {
                       houseCount={0}
                       pendingSyncCount={pendingReceipts.length}
                       isOnline={true}
-                      onBackToHome={() => setCollectionMode(false)}
+                      onBackToHome={handleBackToDashboard}
                       onOpenCollect={() => {
                         if (selectedBuilding) {
                           setIsFastReceiptOpen(true);
@@ -494,8 +553,11 @@ export function DashboardPage() {
                           type="button"
                           data-testid="volunteer-back-home"
                           onClick={() => {
-                            setVolunteerSubView("home");
-                            setSelectedBuilding(null);
+                            if (selectedBuilding) {
+                              handleBackFromBuilding();
+                            } else {
+                              handleBackToDashboard();
+                            }
                           }}
                           className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-slate-950 bg-white border border-slate-200/80 px-3 py-1.5 rounded-xl shadow-2xs cursor-pointer"
                         >
@@ -515,7 +577,7 @@ export function DashboardPage() {
                             buildings={buildings}
                             loading={loadingBuildings}
                             hasActiveSession={Boolean(session && session.sessionStatus === "open")}
-                            onSelectBuilding={(b) => void selectBuilding(b)}
+                            onSelectBuilding={(b) => handleSelectBuilding(b)}
                             onRefresh={() => void loadBuildings()}
                             onStartSession={() => {
                               setVolunteerSubView("home");
@@ -535,7 +597,7 @@ export function DashboardPage() {
                                 } else {
                                   const found = buildings.find((b) => b.buildingId === bId);
                                   if (found) {
-                                    void selectBuilding(found);
+                                    handleSelectBuilding(found);
                                   }
                                 }
                               }}
@@ -597,8 +659,8 @@ export function DashboardPage() {
                           building={selectedBuilding}
                           properties={properties}
                           loading={loadingProperties}
-                          onBack={() => setSelectedBuilding(null)}
-                          onSelectProperty={openPropertyReceipt}
+                          onBack={handleBackFromBuilding}
+                          onSelectProperty={(p) => handleSelectProperty(p)}
                           onStartNextFlat={startNextFlat}
                           onAddProperty={addPropertyDirect}
                         />
@@ -1012,7 +1074,7 @@ export function DashboardPage() {
               </p>
               <button
                 type="button"
-                onClick={() => setActiveTab("collection")}
+                onClick={() => handleTabChange("collection")}
                 className="inline-flex items-center gap-1 text-sm font-bold text-primary hover:underline cursor-pointer pt-2"
               >
                 <span>⚡ Go to Collection</span>
@@ -1035,12 +1097,12 @@ export function DashboardPage() {
                 setReceiptToView(receipt as LocalReceipt)
               }
               onNavigateToBuilding={(buildingId) => {
-                setActiveTab("collection");
+                handleTabChange("collection");
                 const b = buildings.find(
                   (item) => item.buildingId === buildingId || item.buildingName === buildingId
                 );
                 if (b) {
-                  void selectBuilding(b);
+                  handleSelectBuilding(b);
                 }
               }}
               receiptPrefix={session?.prefix || "VP-"}
@@ -1090,11 +1152,9 @@ export function DashboardPage() {
             <BuildingsManagementPanel
               organizationId={organizationId}
               eventId={effectiveEventId}
-              initialSubTab={masterDataSubTab}
               onStartCollection={(b, p) => {
-                setActiveTab("collection");
-                setCollectionMode(true);
-                void selectBuilding({
+                nav.openCollectMode(b.id);
+                handleSelectBuilding({
                   buildingId: b.id,
                   eventId: session?.eventId || "",
                   organizationId,
@@ -1113,7 +1173,7 @@ export function DashboardPage() {
                   cachedAt: new Date().toISOString(),
                 });
                 if (p) {
-                  openPropertyReceipt({
+                  handleSelectProperty({
                     propertyId: p.id,
                     buildingId: b.id,
                     eventId: session?.eventId || "",
@@ -1139,9 +1199,8 @@ export function DashboardPage() {
                 }
               }}
               onStartGeneralReceipt={() => {
-                setActiveTab("collection");
-                setCollectionMode(true);
                 setSelectedBuilding(null);
+                nav.openCollectMode(null);
               }}
             />
           ) : !selectedBuilding ? (
@@ -1149,16 +1208,15 @@ export function DashboardPage() {
               buildings={buildings}
               loading={loadingBuildings}
               eventCode={availableEvents.find((e) => e.id === effectiveEventId)?.code || "GU-26"}
-              onSelectBuilding={(b) => void selectBuilding(b)}
-              onViewFlats={(b) => void selectBuilding(b)}
+              onSelectBuilding={(b) => handleSelectBuilding(b)}
+              onViewFlats={(b) => handleSelectBuilding(b)}
               onOpenCollect={(b) => {
-                void selectBuilding(b);
+                handleSelectBuilding(b);
                 setIsFastReceiptOpen(true);
               }}
               onRefresh={() => void loadBuildings()}
               onStartCollection={() => {
-                setActiveTab("collection");
-                setCollectionMode(true);
+                nav.openCollectMode();
               }}
               isAdmin={false}
             />
@@ -1168,8 +1226,8 @@ export function DashboardPage() {
                 building={selectedBuilding}
                 properties={properties}
                 loading={loadingProperties}
-                onBack={() => setSelectedBuilding(null)}
-                onSelectProperty={openPropertyReceipt}
+                onBack={handleBackFromBuilding}
+                onSelectProperty={(p) => handleSelectProperty(p)}
                 onStartNextFlat={startNextFlat}
                 onAddProperty={addPropertyDirect}
               />
@@ -1255,16 +1313,12 @@ export function DashboardPage() {
         hasActiveSession={Boolean(session && session.sessionStatus === "open")}
         creating={fastReceiptCreating}
         createError={fastReceiptError}
-        onClose={() => {
-          setIsFastReceiptOpen(false);
-          setSelectedProperty(null);
-        }}
+        onClose={handleCloseFastReceipt}
         onNavigateToCloseSession={() => {
           setVolunteerSubView("session");
         }}
         onStartSession={() => {
-          setActiveTab("collection");
-          setCollectionMode(true);
+          nav.openCollectMode();
           setVolunteerSubView("home");
         }}
         onSubmitReceipt={submitFastReceipt}

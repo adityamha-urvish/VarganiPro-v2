@@ -1,5 +1,6 @@
 export type NavigationTab =
   | "collection"
+  | "buildings"
   | "volunteers"
   | "masterData"
   | "handovers"
@@ -37,6 +38,13 @@ export function RoleNavigation({
 
   const tabs = isAdmin ? adminTabs : volunteerTabs;
 
+  function isTabActive(tabId: NavigationTab) {
+    if (activeTab === tabId) return true;
+    if (tabId === "masterData" && activeTab === "buildings") return true;
+    if (tabId === "buildings" && activeTab === "masterData") return true;
+    return false;
+  }
+
   return (
     <>
       {/* -------------------------------------------------------------
@@ -45,7 +53,7 @@ export function RoleNavigation({
       <div className="hidden sm:flex items-center justify-between pb-3 border-b border-amber-900/10">
         <div className="flex items-center gap-1.5 bg-white/90 p-1.5 rounded-2xl border border-amber-900/10 shadow-2xs flex-wrap">
           {tabs.map((t) => {
-            const isActive = activeTab === t.id;
+            const isActive = isTabActive(t.id);
             return (
               <button
                 key={t.id}
@@ -91,11 +99,11 @@ export function RoleNavigation({
       -------------------------------------------------------------- */}
       <nav
         aria-label="Bottom Navigation"
-        className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#FAF5ED] border-t border-amber-900/20 px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(0,0,0,0.06)]"
+        className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#FAF5ED]/95 backdrop-blur-md border-t border-amber-900/20 px-2 pt-1.5 pb-[max(0.75rem,env(safe-area-inset-bottom,0.75rem))] shadow-[0_-4px_16px_rgba(0,0,0,0.06)]"
       >
         <div className={`grid gap-1 ${isAdmin ? "grid-cols-6" : "grid-cols-4"}`}>
           {tabs.map((t) => {
-            const isActive = activeTab === t.id;
+            const isActive = isTabActive(t.id);
             return (
               <button
                 key={t.id}

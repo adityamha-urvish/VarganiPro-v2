@@ -113,11 +113,11 @@ export function AppLayout({
   const navItems = isAdmin ? adminNavItems : volunteerNavItems;
 
   return (
-    <div className="min-h-screen bg-[#FAF5ED] flex flex-col font-sans">
+    <div className="h-[100dvh] max-h-[100dvh] w-full bg-[#FAF5ED] flex flex-col font-sans overflow-hidden">
       {/* -------------------------------------------------------------
           TOP APPLICATION HEADER
       -------------------------------------------------------------- */}
-      <header className="sticky top-0 z-30 border-b border-amber-900/10 bg-[#FAF5ED]/95 backdrop-blur-md shadow-2xs">
+      <header className="shrink-0 z-30 border-b border-amber-900/10 bg-[#FAF5ED]/95 backdrop-blur-md shadow-2xs">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
           {/* Brand & Context */}
           <div className="flex items-center gap-3">
@@ -238,9 +238,9 @@ export function AppLayout({
       </header>
 
       {/* -------------------------------------------------------------
-          MAIN CONTENT CONTAINER (WITH DYNAMIC SAFE-BOTTOM PADDING)
+          MAIN CONTENT CONTAINER (WITH DYNAMIC SAFE-BOTTOM PADDING & INNER SCROLL)
       -------------------------------------------------------------- */}
-      <main className="flex-1 mx-auto w-full max-w-7xl px-4 sm:px-6 py-3 sm:py-5 pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:pb-10">
+      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-5 overflow-y-auto overscroll-y-contain pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] sm:pb-8">
         {children}
       </main>
 
