@@ -111,6 +111,57 @@ export async function fetchBuildingProperties(
   }));
 }
 
+export async function quickAddBuilding(params: {
+  organizationId: string;
+  name: string;
+  wing?: string;
+}): Promise<{ buildingId: string; buildingName: string; wing: string | null; code: string }> {
+  const { data, error } = await supabase.rpc("quick_add_building", {
+    p_organization_id: params.organizationId,
+    p_name: params.name.trim(),
+    p_wing: params.wing?.trim() || null,
+  });
+
+  if (error) {
+    console.error("quickAddBuilding error:", error);
+    throw new Error(error.message || "Failed to add building");
+  }
+
+  return {
+    buildingId: data.building_id,
+    buildingName: data.building_name,
+    wing: data.wing,
+    code: data.code,
+  };
+}
+
+export async function quickAddFlat(params: {
+  buildingId: string;
+  unitNumber: string;
+  floorNumber?: number | null;
+  ownerName?: string;
+  contactMobile?: string;
+}): Promise<{ propertyId: string; isExisting?: boolean; unitNumber: string }> {
+  const { data, error } = await supabase.rpc("quick_add_flat", {
+    p_building_id: params.buildingId,
+    p_unit_number: params.unitNumber.trim(),
+    p_floor_number: params.floorNumber ?? null,
+    p_owner_name: params.ownerName?.trim() || null,
+    p_contact_mobile: params.contactMobile?.trim() || null,
+  });
+
+  if (error) {
+    console.error("quickAddFlat error:", error);
+    throw new Error(error.message || "Failed to add flat");
+  }
+
+  return {
+    propertyId: data.property_id,
+    isExisting: data.is_existing,
+    unitNumber: data.unit_number,
+  };
+}
+
 export async function createResidentialFlat(params: {
   organizationId: string;
   buildingId: string;

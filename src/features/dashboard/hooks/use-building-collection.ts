@@ -14,7 +14,10 @@ import { createLocalReceipt } from "@/lib/offline/receipt-store";
 import { drainSyncQueue } from "@/lib/offline/receipt-sync";
 import type { CollectionSessionContext } from "@/features/collection/services/collection-session.service";
 import type { PaymentMode } from "../components/receipt-creation-form";
-import { createResidentialFlat } from "@/features/admin/master-data/services/master-data.service";
+import {
+  quickAddFlat,
+  quickAddBuilding,
+} from "@/features/admin/master-data/services/master-data.service";
 
 export type ActiveCollectionSession = CollectionSessionContext;
 
@@ -253,11 +256,12 @@ export function useBuildingCollection({
       ownerName?: string;
       contactMobile?: string;
     }): Promise<CachedPropertyProgress | null> => {
-      if (!session || !selectedBuilding) return null;
+      const orgId = session?.organizationId || organizationId;
+      const evId = session?.eventId || eventId;
+      if (!selectedBuilding || !orgId || !evId) return null;
 
       try {
-        const res = await createResidentialFlat({
-          organizationId: session.organizationId,
+        const res = await quickAddFlat({
           buildingId: selectedBuilding.buildingId,
           unitNumber: input.unitNumber.trim(),
           floorNumber: input.floorNumber ?? undefined,
@@ -268,8 +272,8 @@ export function useBuildingCollection({
         const newProperty: CachedPropertyProgress = {
           propertyId: res.propertyId,
           buildingId: selectedBuilding.buildingId,
-          eventId: session.eventId,
-          organizationId: session.organizationId,
+          eventId: evId,
+          organizationId: orgId,
           propertyType: "flat",
           unitNumber: input.unitNumber.trim(),
           flatNumber: input.unitNumber.trim(),
@@ -297,43 +301,71 @@ export function useBuildingCollection({
                 p.unitNumber.toLowerCase() === newProperty.unitNumber.toLowerCase()
             )
           ) {
-            return prev;
+            return prev.map((p) =>
+              p.propertyId === newProperty.propertyId ||
+              p.unitNumber.toLowerCase() === newProperty.unitNumber.toLowerCase()
+                ? { ...p, ...newProperty }
+                : p
+            );
           }
           return [...prev, newProperty];
         });
 
         return newProperty;
       } catch (err) {
-        console.error("Error adding progressive flat in session:", err);
-        const localId = `local_prop_${Date.now()}`;
-        const localProp: CachedPropertyProgress = {
-          propertyId: localId,
-          buildingId: selectedBuilding.buildingId,
-          eventId: session.eventId,
-          organizationId: session.organizationId,
-          propertyType: "flat",
-          unitNumber: input.unitNumber.trim(),
-          flatNumber: input.unitNumber.trim(),
-          floorNumber: input.floorNumber ?? null,
-          shopName: null,
-          ownerName: input.ownerName?.trim() || null,
-          contactMobile: input.contactMobile?.trim() || null,
-          status: "not_visited",
-          receiptCount: 0,
-          totalCollectedAmount: 0,
-          latestReceiptNumber: null,
-          lastReceiptAt: null,
-          pendingReason: null,
-          followUpTime: null,
-          followUpNotes: null,
-          followUpAt: null,
-          cachedAt: new Date().toISOString(),
-        };
-        setProperties((prev) => [...prev, localProp]);
-        return localProp;
+        console.error("Error adding flat in session:", err);
+        throw err;
       }
     },
-    [session, selectedBuilding]
+    [session, organizationId, eventId, selectedBuilding]
+  );
+
+  const addBuildingDirect = useCallback(
+    async (
+      nameOrInput: string | { name: string; wing?: string },
+      wingParam?: string
+    ): Promise<CachedBuildingSummary | null> => {
+      const orgId = session?.organizationId || organizationId;
+      const evId = session?.eventId || eventId;
+      if (!orgId || !evId) return null;
+
+      const name = typeof nameOrInput === "string" ? nameOrInput : nameOrInput.name;
+      const wing = typeof nameOrInput === "string" ? wingParam : nameOrInput.wing;
+
+      try {
+        const res = await quickAddBuilding({
+          organizationId: orgId,
+          name: name.trim(),
+          wing: wing?.trim() || undefined,
+        });
+
+        const newBuilding: CachedBuildingSummary = {
+          buildingId: res.buildingId,
+          eventId: evId,
+          organizationId: orgId,
+          buildingName: res.buildingName,
+          code: res.code,
+          wing: res.wing,
+          areaName: null,
+          totalUnits: 0,
+          collectedCount: 0,
+          pendingCount: 0,
+          refusedCount: 0,
+          notVisitedCount: 0,
+          remainingCount: 0,
+          totalAmountCollected: 0,
+          lastActivityAt: null,
+          cachedAt: new Date().toISOString(),
+        };
+
+        setBuildings((prev) => [newBuilding, ...prev.filter((b) => b.buildingId !== newBuilding.buildingId)]);
+        return newBuilding;
+      } catch (err) {
+        console.error("Error adding building in session:", err);
+        throw err;
+      }
+    },
+    [session, organizationId, eventId]
   );
 
   useEffect(() => {
@@ -366,5 +398,6 @@ export function useBuildingCollection({
     submitFastReceipt,
     submitFollowUp,
     addPropertyDirect,
+    addBuildingDirect,
   };
 }

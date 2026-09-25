@@ -94,6 +94,7 @@ export function ReceiptCreationForm({
   const [newUnitNumber, setNewUnitNumber] = useState("");
   const [newFloorNumber, setNewFloorNumber] = useState("");
   const [newOwnerName, setNewOwnerName] = useState("");
+  const [newContactMobile, setNewContactMobile] = useState("");
   const [addingFlat, setAddingFlat] = useState(false);
   const [flatAddError, setFlatAddError] = useState<string | null>(null);
 
@@ -125,13 +126,21 @@ export function ReceiptCreationForm({
         unitNumber: newUnitNumber.trim(),
         floorNumber: newFloorNumber ? parseInt(newFloorNumber, 10) : null,
         ownerName: newOwnerName.trim() || undefined,
+        contactMobile: newContactMobile.trim() || undefined,
       });
       if (createdId && typeof createdId === "string") {
         onPropertyIdChange?.(createdId);
+        if (newOwnerName.trim() && !donorName) {
+          onDonorNameChange?.(newOwnerName.trim());
+        }
+        if (newContactMobile.trim() && !donorMobile) {
+          onDonorMobileChange?.(newContactMobile.trim());
+        }
       }
       setNewUnitNumber("");
       setNewFloorNumber("");
       setNewOwnerName("");
+      setNewContactMobile("");
       setShowAddFlat(false);
     } catch (err) {
       setFlatAddError(err instanceof Error ? err.message : "Failed to add flat");
@@ -322,9 +331,21 @@ export function ReceiptCreationForm({
               id="propertyId"
               value={propertyId || ""}
               disabled={isExhausted || creating}
-              onChange={(event) =>
-                onPropertyIdChange?.(event.target.value || null)
-              }
+              onChange={(event) => {
+                const newPId = event.target.value || null;
+                onPropertyIdChange?.(newPId);
+                if (newPId && properties) {
+                  const foundProp = properties.find((p) => p.propertyId === newPId);
+                  if (foundProp) {
+                    if (foundProp.ownerName && !donorName) {
+                      onDonorNameChange?.(foundProp.ownerName);
+                    }
+                    if (foundProp.contactMobile && !donorMobile) {
+                      onDonorMobileChange?.(foundProp.contactMobile);
+                    }
+                  }
+                }
+              }}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring disabled:opacity-50"
             >
               <option value="">-- General / Non-Property Donation --</option>
@@ -348,7 +369,7 @@ export function ReceiptCreationForm({
                     ✕ Cancel
                   </button>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <Input
                     type="text"
                     placeholder="Flat Number (e.g. 101)"
@@ -358,16 +379,23 @@ export function ReceiptCreationForm({
                   />
                   <Input
                     type="number"
-                    placeholder="Floor (Optional)"
+                    placeholder="Floor (Optional, e.g. 1)"
                     value={newFloorNumber}
                     onChange={(e) => setNewFloorNumber(e.target.value)}
                     className="h-8 text-xs bg-white"
                   />
                   <Input
                     type="text"
-                    placeholder="Owner Name (Optional)"
+                    placeholder="Owner / Resident Name (Optional)"
                     value={newOwnerName}
                     onChange={(e) => setNewOwnerName(e.target.value)}
+                    className="h-8 text-xs bg-white"
+                  />
+                  <Input
+                    type="tel"
+                    placeholder="Mobile (Optional, 10-digit)"
+                    value={newContactMobile}
+                    onChange={(e) => setNewContactMobile(e.target.value)}
                     className="h-8 text-xs bg-white"
                   />
                 </div>

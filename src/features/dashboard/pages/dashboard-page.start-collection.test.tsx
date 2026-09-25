@@ -466,7 +466,6 @@ describe("DashboardPage start collection workflow characterization", () => {
 
     expect(getLocalReceiptsMock).toHaveBeenCalledWith("book-1");
 
-    expect(await screen.findByRole("heading", { name: "Session Summary" })).toBeTruthy();
     expect(await screen.findByRole("heading", { name: "New Receipt" })).toBeTruthy();
   });
 

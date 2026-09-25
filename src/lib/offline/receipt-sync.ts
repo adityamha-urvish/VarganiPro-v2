@@ -162,6 +162,23 @@ export async function syncNextReceipt(
         };
       }
 
+      if (normalizedPropertyId && (normalizedPropertyId.startsWith("local_") || normalizedPropertyId.startsWith("temp_"))) {
+        const errorMsg = `Cannot sync receipt with temporary property ID "${normalizedPropertyId}". Property must be created on server first.`;
+        await updateLocalReceiptSyncState(receipt.clientReceiptId, "failed", {
+          syncAttempts: nextAttempt,
+          lastSyncAttemptAt: attemptTime,
+          lastSyncError: errorMsg,
+        });
+
+        return {
+          receipt,
+          success: false,
+          alreadyExists: false,
+          conflict: false,
+          response: { message: errorMsg, code: "22P02" },
+        };
+      }
+
       console.log(
         "SYNCING RECEIPT:",
         receipt.receiptNumber,

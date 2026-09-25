@@ -107,20 +107,6 @@ export function checkShareEligibility(receipt: WhatsAppReceiptInput | null | und
 
   // Check sync state
   if (receipt.syncStatus) {
-    if (receipt.syncStatus === 'pending') {
-      return {
-        isShareable: false,
-        reason: 'Sync झाल्यावर उपलब्ध होईल (Available after sync)',
-        code: 'UNSYNCED',
-      };
-    }
-    if (receipt.syncStatus === 'syncing') {
-      return {
-        isShareable: false,
-        reason: 'Sync होत आहे... (Syncing in progress)',
-        code: 'SYNCING',
-      };
-    }
     if (receipt.syncStatus === 'conflict') {
       return {
         isShareable: false,
@@ -128,7 +114,12 @@ export function checkShareEligibility(receipt: WhatsAppReceiptInput | null | und
         code: 'CONFLICT',
       };
     }
-    if (receipt.syncStatus === 'synced') {
+    // Local pending, syncing, or synced receipts are shareable if data is complete
+    if (
+      receipt.syncStatus === 'pending' ||
+      receipt.syncStatus === 'syncing' ||
+      receipt.syncStatus === 'synced'
+    ) {
       return {
         isShareable: true,
         reason: null,

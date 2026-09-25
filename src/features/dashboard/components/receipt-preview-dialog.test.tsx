@@ -146,7 +146,7 @@ describe("ReceiptPreviewDialog", () => {
     expect(screen.getByRole("button", { name: /WhatsApp उघडा/i })).toBeTruthy();
   });
 
-  it("6. disables WhatsApp button and shows tooltip when receipt is not yet synced", () => {
+  it("6. renders enabled WhatsApp button for pending/local receipt with doorstep sharing", () => {
     const unsyncedReceipt = {
       ...mockReceipt,
       syncStatus: "pending" as const,
@@ -164,8 +164,7 @@ describe("ReceiptPreviewDialog", () => {
     );
 
     const waBtn = screen.getByRole("button", { name: /WhatsApp/i });
-    expect((waBtn as HTMLButtonElement).disabled).toBe(true);
-    expect(screen.getByText(/Sync झाल्यावर उपलब्ध होईल/)).toBeTruthy();
+    expect((waBtn as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("7. disables WhatsApp button when receipt is voided", () => {

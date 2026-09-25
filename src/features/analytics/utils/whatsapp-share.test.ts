@@ -33,18 +33,16 @@ describe('WhatsApp Receipt Sharing Utility (whatsapp-share.ts)', () => {
       expect(res.reason).toBeNull();
     });
 
-    it('2. unsynced pending receipt is not shareable', () => {
+    it('2. pending local receipt is shareable at donor doorstep', () => {
       const res = checkShareEligibility({ ...baseReceipt, syncStatus: 'pending' });
-      expect(res.isShareable).toBe(false);
-      expect(res.code).toBe('UNSYNCED');
-      expect(res.reason).toContain('Sync झाल्यावर उपलब्ध होईल');
+      expect(res.isShareable).toBe(true);
+      expect(res.code).toBe('ELIGIBLE');
     });
 
-    it('3. syncing receipt is not shareable', () => {
+    it('3. syncing receipt is shareable at donor doorstep', () => {
       const res = checkShareEligibility({ ...baseReceipt, syncStatus: 'syncing' });
-      expect(res.isShareable).toBe(false);
-      expect(res.code).toBe('SYNCING');
-      expect(res.reason).toContain('Sync होत आहे');
+      expect(res.isShareable).toBe(true);
+      expect(res.code).toBe('ELIGIBLE');
     });
 
     it('4. conflict receipt is not shareable', () => {

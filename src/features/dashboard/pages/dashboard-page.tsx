@@ -13,6 +13,7 @@ import { FastReceiptModal } from "../components/fast-receipt-modal";
 import { LastCreatedReceiptCard } from "../components/last-created-receipt-card";
 import { PendingReasonDrawer } from "../components/pending-reason-drawer";
 import { ReceiptCreationForm } from "../components/receipt-creation-form";
+import { ReceiptCreationConfirmation } from "../components/receipt-creation-confirmation";
 import { ReceiptHistoryPanel } from "../components/receipt-history-panel";
 import { ReceiptPreviewDialog } from "../components/receipt-preview-dialog";
 import { SessionSummaryCard } from "../components/session-summary-card";
@@ -51,6 +52,12 @@ export function DashboardPage() {
   const [volunteerSubView, setVolunteerSubView] = useState<"home" | "buildings" | "history" | "handover" | "session">("home");
   const [receiptToView, setReceiptToView] =
     useState<LocalReceipt | null>(null);
+  const [activeConfirmationReceipt, setActiveConfirmationReceipt] = useState<{
+    receipt: LocalReceipt;
+    buildingName?: string | null;
+    unitNumber?: string | null;
+    nextProperty?: typeof selectedProperty;
+  } | null>(null);
 
   const {
     session,
@@ -89,6 +96,60 @@ export function DashboardPage() {
   });
 
   const {
+    handover,
+    setHandover,
+    creatingHandover,
+    submittingHandover,
+    actualCashAmount,
+    setActualCashAmount,
+    actualChequeAmount,
+    setActualChequeAmount,
+    authorizedExpenseAmount,
+    setAuthorizedExpenseAmount,
+    authorizedExpenseNote,
+    setAuthorizedExpenseNote,
+    discrepancyReason,
+    setDiscrepancyReason,
+    handoverNotes,
+    setHandoverNotes,
+    handoverMessage,
+    handoverError,
+    loadSessionHandover,
+    handleCreateHandover,
+    handleSubmitHandover,
+  } = useVolunteerHandover({ session });
+
+  const {
+    startSessionLoading,
+    startSessionError,
+    availableEvents,
+    availableBooks,
+    selectedEventId,
+    setSelectedEventId,
+    selectedBookId,
+    setSelectedBookId,
+    loadAvailableBooks,
+    handleStartCollectionSession,
+  } = useStartCollection({
+    session,
+    loading,
+    isAdmin,
+    organizationId,
+    loadCurrentCollectionSession,
+    onSessionStarted: async (newSession) => {
+      setSession(newSession);
+      setOrganizationId(newSession.organizationId);
+      await ensureOfflineBookState(newSession);
+      await loadReceiptHistory(newSession.receiptBookId);
+      setHandover(null);
+      nav.openCollectMode();
+    },
+  });
+
+  const effectiveEventId =
+    session?.eventId || selectedEventId || availableEvents[0]?.id || null;
+
+  const {
     propertyId,
     setPropertyId,
     donorName,
@@ -125,6 +186,15 @@ export function DashboardPage() {
             }
           : current
       );
+      const bld = buildings.find((b) => b.buildingId === (selectedBuilding?.buildingId || propertyId));
+      const flat = properties.find((p) => p.propertyId === propertyId);
+      nav.selectFlatId(null);
+      setActiveConfirmationReceipt({
+        receipt,
+        buildingName: bld?.buildingName || null,
+        unitNumber: flat?.unitNumber || null,
+        nextProperty: null,
+      });
     },
   });
 
@@ -151,8 +221,11 @@ export function DashboardPage() {
     submitFastReceipt,
     submitFollowUp,
     addPropertyDirect,
+    addBuildingDirect,
   } = useBuildingCollection({
     session,
+    eventId: session?.eventId || selectedEventId,
+    organizationId: session?.organizationId || organizationId,
     onReceiptCreated: (receipt) => {
       setSession((current) =>
         current
@@ -165,6 +238,14 @@ export function DashboardPage() {
             }
           : current
       );
+      const nextP = getNextProperty(selectedProperty?.propertyId);
+      nav.selectFlatId(null);
+      setActiveConfirmationReceipt({
+        receipt,
+        buildingName: selectedBuilding?.buildingName || null,
+        unitNumber: selectedProperty?.unitNumber || null,
+        nextProperty: nextP,
+      });
     },
     onReceiptHistoryRefresh: loadReceiptHistory,
   });
@@ -183,12 +264,12 @@ export function DashboardPage() {
     }
   }, [nav.buildingId, buildings, selectedBuilding, selectBuilding, setSelectedBuilding]);
 
-  // Sync nav.flatId with selectedProperty & isFastReceiptOpen
+  // Sync nav.flatId with selectedProperty & isFastReceiptOpen (safe against collected auto-advance)
   useEffect(() => {
     if (nav.flatId && properties.length > 0) {
       if (selectedProperty?.propertyId !== nav.flatId) {
         const found = properties.find((p) => p.propertyId === nav.flatId);
-        if (found) {
+        if (found && found.status !== "collected" && !activeConfirmationReceipt) {
           openPropertyReceipt(found);
         }
       }
@@ -196,12 +277,13 @@ export function DashboardPage() {
       setIsFastReceiptOpen(false);
       setSelectedProperty(null);
     }
-  }, [nav.flatId, properties, selectedProperty, isFastReceiptOpen, openPropertyReceipt, setIsFastReceiptOpen, setSelectedProperty]);
+  }, [nav.flatId, properties, selectedProperty, isFastReceiptOpen, activeConfirmationReceipt, openPropertyReceipt, setIsFastReceiptOpen, setSelectedProperty]);
 
   function handleTabChange(tab: NavigationTab) {
     setIsFastReceiptOpen(false);
     setSelectedProperty(null);
     setSelectedBuilding(null);
+    setActiveConfirmationReceipt(null);
     if (tab === "collection") {
       nav.resetToHome();
       setVolunteerSubView("home");
@@ -239,6 +321,7 @@ export function DashboardPage() {
     setSelectedBuilding(null);
     setSelectedProperty(null);
     setIsFastReceiptOpen(false);
+    setActiveConfirmationReceipt(null);
     nav.resetToHome();
     setVolunteerSubView("home");
   }
@@ -256,30 +339,6 @@ export function DashboardPage() {
       void loadBuildings();
     }
   }, [isAdmin, organizationId, loadBuildings]);
-
-  const {
-    handover,
-    setHandover,
-    creatingHandover,
-    submittingHandover,
-    actualCashAmount,
-    setActualCashAmount,
-    actualChequeAmount,
-    setActualChequeAmount,
-    authorizedExpenseAmount,
-    setAuthorizedExpenseAmount,
-    authorizedExpenseNote,
-    setAuthorizedExpenseNote,
-    discrepancyReason,
-    setDiscrepancyReason,
-    handoverNotes,
-    setHandoverNotes,
-    handoverMessage,
-    handoverError,
-    loadSessionHandover,
-    handleCreateHandover,
-    handleSubmitHandover,
-  } = useVolunteerHandover({ session });
 
   const {
     issuedReceipts,
@@ -309,36 +368,6 @@ export function DashboardPage() {
       );
     },
   });
-
-  const {
-    startSessionLoading,
-    startSessionError,
-    availableEvents,
-    availableBooks,
-    selectedEventId,
-    setSelectedEventId,
-    selectedBookId,
-    setSelectedBookId,
-    loadAvailableBooks,
-    handleStartCollectionSession,
-  } = useStartCollection({
-    session,
-    loading,
-    isAdmin,
-    organizationId,
-    loadCurrentCollectionSession,
-    onSessionStarted: async (newSession) => {
-      setSession(newSession);
-      setOrganizationId(newSession.organizationId);
-      await ensureOfflineBookState(newSession);
-      await loadReceiptHistory(newSession.receiptBookId);
-      setHandover(null);
-      nav.openCollectMode();
-    },
-  });
-
-  const effectiveEventId =
-    session?.eventId || selectedEventId || availableEvents[0]?.id || null;
 
   const {
     metrics: secretaryMetrics,
@@ -423,10 +452,10 @@ export function DashboardPage() {
                 sessionBookNumber={session?.bookNumber}
                 sessionReceiptNumber={session ? `${session.prefix || "VP-"}${session.currentNumber}` : undefined}
                 sessionStatus={session?.sessionStatus}
-                totalAmount={totalAmount || secretaryMetrics?.today?.total_amount || 0}
-                cashAmount={cashAmount || secretaryMetrics?.today?.cash_amount || 0}
-                upiAmount={upiAmount || secretaryMetrics?.today?.upi_amount || 0}
-                receiptCount={issuedReceipts.length || secretaryMetrics?.today?.receipt_count || 0}
+                totalAmount={isAdmin ? (secretaryMetrics?.festival_total?.total_amount ?? totalAmount) : totalAmount}
+                cashAmount={isAdmin ? (secretaryMetrics?.festival_total?.cash_amount ?? cashAmount) : cashAmount}
+                upiAmount={isAdmin ? (secretaryMetrics?.festival_total?.upi_amount ?? upiAmount) : upiAmount}
+                receiptCount={isAdmin ? (secretaryMetrics?.festival_total?.receipt_count ?? issuedReceipts.length) : issuedReceipts.length}
                 isLive={true}
                 isAdmin={isAdmin}
                 hasActiveSession={Boolean(session && session.sessionStatus === "open")}
@@ -579,6 +608,7 @@ export function DashboardPage() {
                             hasActiveSession={Boolean(session && session.sessionStatus === "open")}
                             onSelectBuilding={(b) => handleSelectBuilding(b)}
                             onRefresh={() => void loadBuildings()}
+                            onAddBuilding={addBuildingDirect}
                             onStartSession={() => {
                               setVolunteerSubView("home");
                             }}
@@ -602,14 +632,8 @@ export function DashboardPage() {
                                 }
                               }}
                               onAddBuilding={async (name, wing) => {
-                                if (!organizationId) return;
-                                const res = await createBuilding({
-                                  organizationId,
-                                  name,
-                                  wing,
-                                });
-                                await loadBuildings();
-                                return res.buildingId;
+                                const res = await addBuildingDirect(name, wing);
+                                return res?.buildingId;
                               }}
                               onAddProperty={async (input) => {
                                 if (!selectedBuilding) return;
@@ -881,45 +905,6 @@ export function DashboardPage() {
               {/* ADMIN ACTIVE SESSION WORKFLOW */}
               {isAdmin && session && (
                 <>
-                  <SessionSummaryCard
-                    session={session}
-                    receiptCount={issuedReceipts.length}
-                    totalAmount={totalAmount}
-                    pendingCount={pendingReceipts.length}
-                    conflictCount={conflictReceipts.length}
-                    cashAmount={cashAmount}
-                    upiAmount={upiAmount}
-                    chequeAmount={chequeAmount}
-                    bankTransferAmount={bankTransferAmount}
-                    closingSession={closingSession}
-                    sessionCloseError={sessionCloseError}
-                    sessionCloseMessage={sessionCloseMessage}
-                    onCloseSession={() => void handleCloseSession()}
-                  />
-
-                  {session.sessionStatus === "open" && (
-                    <>
-                      {!selectedBuilding ? (
-                        <ContinueCollectionCard
-                          buildings={buildings}
-                          loading={loadingBuildings}
-                          onSelectBuilding={(b) => void selectBuilding(b)}
-                          onRefresh={() => void loadBuildings()}
-                        />
-                      ) : (
-                        <BuildingFlatGrid
-                          building={selectedBuilding}
-                          properties={properties}
-                          loading={loadingProperties}
-                          onBack={() => setSelectedBuilding(null)}
-                          onSelectProperty={openPropertyReceipt}
-                          onStartNextFlat={startNextFlat}
-                          onAddProperty={addPropertyDirect}
-                        />
-                      )}
-                    </>
-                  )}
-
                   {session.sessionStatus === "completed" && (
                     <StartCollectionCard
                       title="Start New Collection"
@@ -957,14 +942,8 @@ export function DashboardPage() {
                       }
                     }}
                     onAddBuilding={async (name, wing) => {
-                      if (!organizationId) return;
-                      const res = await createBuilding({
-                        organizationId,
-                        name,
-                        wing,
-                      });
-                      await loadBuildings();
-                      return res.buildingId;
+                      const res = await addBuildingDirect(name, wing);
+                      return res?.buildingId;
                     }}
                     onAddProperty={async (input) => {
                       if (!selectedBuilding) return;
@@ -1348,6 +1327,22 @@ export function DashboardPage() {
           }
         }}
       />
+
+      {/* Global Receipt Creation Confirmation Dialog */}
+      {activeConfirmationReceipt && (
+        <ReceiptCreationConfirmation
+          receipt={activeConfirmationReceipt.receipt}
+          buildingName={activeConfirmationReceipt.buildingName}
+          unitNumber={activeConfirmationReceipt.unitNumber}
+          nextProperty={activeConfirmationReceipt.nextProperty}
+          onClose={() => setActiveConfirmationReceipt(null)}
+          onViewReceipt={(receipt) => setReceiptToView(receipt)}
+          onNextFlat={(prop) => {
+            setActiveConfirmationReceipt(null);
+            openPropertyReceipt(prop);
+          }}
+        />
+      )}
 
       <style>{`
         @media print {
