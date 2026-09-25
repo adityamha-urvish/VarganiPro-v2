@@ -5,7 +5,9 @@ import {
   createBuilding,
   createResidentialFlat,
   createStandaloneShop,
+  quickAddShop,
 } from "./master-data.service";
+
 
 const { supabaseRpcMock, supabaseFromMock } = vi.hoisted(() => ({
   supabaseRpcMock: vi.fn(),
@@ -100,5 +102,28 @@ describe("Phase 9-3B: Master Data Service", () => {
       p_floor_number: null,
     });
     expect(res.propertyId).toBe("shop-1");
+  });
+
+  it("quickAddShop calls quick_add_shop RPC with tenant-scoped params", async () => {
+    supabaseRpcMock.mockResolvedValueOnce({
+      data: { success: true, property_id: "shop-q1", shop_name: "Om Sai Medical", is_existing: false },
+      error: null,
+    });
+
+    const res = await quickAddShop({
+      organizationId: "org-1",
+      shopName: "Om Sai Medical",
+      ownerName: "Mahesh Shah",
+      contactMobile: "9820055555",
+    });
+
+    expect(supabaseRpcMock).toHaveBeenCalledWith("quick_add_shop", {
+      p_organization_id: "org-1",
+      p_shop_name: "Om Sai Medical",
+      p_owner_name: "Mahesh Shah",
+      p_contact_mobile: "9820055555",
+    });
+    expect(res.propertyId).toBe("shop-q1");
+    expect(res.shopName).toBe("Om Sai Medical");
   });
 });

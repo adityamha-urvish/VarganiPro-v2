@@ -18,8 +18,9 @@ export interface BuildingsManagementPanelProps {
   organizationId: string;
   eventId?: string | null;
   initialSubTab?: "buildings" | "shops" | "books";
-  onStartCollection?: (building: BuildingRecord, flat?: PropertyRecord) => void;
+  onStartCollection?: (building?: BuildingRecord | null, flat?: PropertyRecord) => void;
   onStartGeneralReceipt?: () => void;
+
 }
 
 export function BuildingsManagementPanel({
@@ -653,11 +654,28 @@ export function BuildingsManagementPanel({
               {shops.map((s) => (
                 <div
                   key={s.id}
-                  className="rounded-xl border bg-card p-3.5 shadow-xs space-y-1.5"
+                  data-testid={`admin-shop-card-${s.id}`}
+                  onClick={() => onStartCollection?.(null, s)}
+                  className="rounded-xl border bg-card p-3.5 shadow-xs space-y-2 hover:border-orange-500/40 hover:shadow-sm transition-all cursor-pointer group"
                 >
-                  <h4 className="text-sm font-bold text-slate-900">
-                    🏪 {s.shopName}
-                  </h4>
+                  <div className="flex items-start justify-between gap-2">
+                    <h4 className="text-sm font-bold text-slate-900 group-hover:text-orange-600 transition-colors">
+                      🏪 {s.shopName}
+                    </h4>
+                    {onStartCollection && (
+                      <button
+                        type="button"
+                        data-testid={`btn-collect-admin-shop-${s.id}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onStartCollection(null, s);
+                        }}
+                        className="text-[11px] font-bold px-2 py-0.5 rounded-lg bg-orange-600 hover:bg-orange-700 text-white transition-colors cursor-pointer"
+                      >
+                        ⚡ पावती / Collect
+                      </button>
+                    )}
+                  </div>
                   {s.ownerName && (
                     <p className="text-xs text-slate-600">👤 {s.ownerName}</p>
                   )}
@@ -667,6 +685,7 @@ export function BuildingsManagementPanel({
                 </div>
               ))}
             </div>
+
           )}
         </div>
       )}

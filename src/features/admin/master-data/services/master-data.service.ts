@@ -253,3 +253,28 @@ export async function createStandaloneShop(params: {
     propertyId: data.property_id,
   };
 }
+
+export async function quickAddShop(params: {
+  organizationId: string;
+  shopName: string;
+  ownerName?: string;
+  contactMobile?: string;
+}): Promise<{ propertyId: string; isExisting?: boolean; shopName: string }> {
+  const { data, error } = await supabase.rpc("quick_add_shop", {
+    p_organization_id: params.organizationId,
+    p_shop_name: params.shopName.trim(),
+    p_owner_name: params.ownerName?.trim() || null,
+    p_contact_mobile: params.contactMobile?.trim() || null,
+  });
+
+  if (error) {
+    console.error("quickAddShop error:", error);
+    throw new Error(error.message || "Failed to add shop");
+  }
+
+  return {
+    propertyId: data.property_id,
+    isExisting: data.is_existing,
+    shopName: data.shop_name,
+  };
+}

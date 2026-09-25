@@ -70,7 +70,12 @@ export function FastReceiptModal({
 
   const isExhausted = endNumber !== undefined && currentReceiptNumber > endNumber;
   const isCollected = property.status === "collected";
-  const defaultDonorName = property.ownerName || `Flat ${property.unitNumber} Resident`;
+  const isShop = property.propertyType === "commercial" || Boolean(property.shopName);
+  const defaultDonorName =
+    property.ownerName ||
+    (isShop
+      ? property.shopName || "Commercial Shop"
+      : `Flat ${property.unitNumber} Resident`);
   const effectiveDonorName = customDonorName.trim() || defaultDonorName;
 
   async function handleSubmit(e: FormEvent) {
@@ -107,12 +112,13 @@ export function FastReceiptModal({
               }`}>
                 {isExhausted ? "Book Completed" : `Receipt #${currentReceiptNumber}`}
               </span>
-              <span className="text-xs text-muted-foreground">{buildingName}</span>
+              <span className="text-xs text-muted-foreground">{buildingName || (isShop ? "Commercial" : "")}</span>
             </div>
             <h3 className="text-2xl font-black text-foreground mt-1">
-              Flat {property.unitNumber}
+              {isShop ? (property.shopName || "Commercial Shop") : `Flat ${property.unitNumber}`}
             </h3>
           </div>
+
 
           <button
             type="button"

@@ -205,6 +205,10 @@ export function DashboardPage() {
     properties,
     selectedProperty,
     setSelectedProperty,
+    shops,
+    loadingShops,
+    loadShops,
+    addShopDirect,
     isFastReceiptOpen,
     setIsFastReceiptOpen,
     isPendingDrawerOpen,
@@ -266,8 +270,14 @@ export function DashboardPage() {
 
   // Sync nav.flatId with selectedProperty & isFastReceiptOpen (safe against collected auto-advance)
   useEffect(() => {
-    if (nav.flatId && properties.length > 0) {
-      if (selectedProperty?.propertyId !== nav.flatId) {
+    if (nav.flatId) {
+      if (selectedProperty?.propertyId === nav.flatId) {
+        if (!isFastReceiptOpen && !activeConfirmationReceipt) {
+          setIsFastReceiptOpen(true);
+        }
+        return;
+      }
+      if (properties.length > 0) {
         const found = properties.find((p) => p.propertyId === nav.flatId);
         if (found && found.status !== "collected" && !activeConfirmationReceipt) {
           openPropertyReceipt(found);
@@ -278,6 +288,7 @@ export function DashboardPage() {
       setSelectedProperty(null);
     }
   }, [nav.flatId, properties, selectedProperty, isFastReceiptOpen, activeConfirmationReceipt, openPropertyReceipt, setIsFastReceiptOpen, setSelectedProperty]);
+
 
   function handleTabChange(tab: NavigationTab) {
     setIsFastReceiptOpen(false);
@@ -1132,33 +1143,38 @@ export function DashboardPage() {
               organizationId={organizationId}
               eventId={effectiveEventId}
               onStartCollection={(b, p) => {
-                nav.openCollectMode(b.id);
-                handleSelectBuilding({
-                  buildingId: b.id,
-                  eventId: session?.eventId || "",
-                  organizationId,
-                  buildingName: b.name,
-                  code: b.code || null,
-                  wing: b.wing || null,
-                  areaName: b.areaName || null,
-                  totalUnits: 0,
-                  collectedCount: 0,
-                  pendingCount: 0,
-                  refusedCount: 0,
-                  notVisitedCount: 0,
-                  remainingCount: 0,
-                  totalAmountCollected: 0,
-                  lastActivityAt: null,
-                  cachedAt: new Date().toISOString(),
-                });
-                if (p) {
-                  handleSelectProperty({
-                    propertyId: p.id,
+                if (b) {
+                  nav.openCollectMode(b.id);
+                  handleSelectBuilding({
                     buildingId: b.id,
                     eventId: session?.eventId || "",
                     organizationId,
-                    propertyType: p.propertyType || "flat",
-                    unitNumber: p.unitNumber || p.flatNumber || "",
+                    buildingName: b.name,
+                    code: b.code || null,
+                    wing: b.wing || null,
+                    areaName: b.areaName || null,
+                    totalUnits: 0,
+                    collectedCount: 0,
+                    pendingCount: 0,
+                    refusedCount: 0,
+                    notVisitedCount: 0,
+                    remainingCount: 0,
+                    totalAmountCollected: 0,
+                    lastActivityAt: null,
+                    cachedAt: new Date().toISOString(),
+                  });
+                } else {
+                  setSelectedBuilding(null);
+                  nav.openCollectMode(null);
+                }
+                if (p) {
+                  handleSelectProperty({
+                    propertyId: p.id,
+                    buildingId: b?.id || "",
+                    eventId: session?.eventId || "",
+                    organizationId,
+                    propertyType: p.propertyType || (p.shopName ? "commercial" : "flat"),
+                    unitNumber: p.unitNumber || p.flatNumber || p.shopName || "",
                     flatNumber: p.flatNumber || p.unitNumber || "",
                     floorNumber: p.floorNumber ?? null,
                     shopName: p.shopName || null,
@@ -1193,13 +1209,47 @@ export function DashboardPage() {
                 handleSelectBuilding(b);
                 setIsFastReceiptOpen(true);
               }}
-              onRefresh={() => void loadBuildings()}
+              onRefresh={() => {
+                void loadBuildings();
+                void loadShops();
+              }}
               onStartCollection={() => {
                 nav.openCollectMode();
               }}
+              onAddBuilding={addBuildingDirect}
+              shops={shops}
+              loadingShops={loadingShops}
+              onSelectShop={(shop) => {
+                handleSelectProperty({
+                  propertyId: shop.id,
+                  buildingId: "",
+                  eventId: session?.eventId || "",
+                  organizationId: organizationId || "",
+                  propertyType: "commercial",
+                  unitNumber: "",
+                  flatNumber: null,
+                  floorNumber: null,
+                  shopName: shop.shopName ?? null,
+
+                  ownerName: shop.ownerName ?? null,
+                  contactMobile: shop.contactMobile ?? null,
+                  status: "not_visited",
+                  receiptCount: 0,
+                  totalCollectedAmount: 0,
+                  latestReceiptNumber: null,
+                  lastReceiptAt: null,
+                  pendingReason: null,
+                  followUpTime: null,
+                  followUpNotes: null,
+                  followUpAt: null,
+                  cachedAt: new Date().toISOString(),
+                });
+              }}
+              onAddShop={addShopDirect}
               isAdmin={false}
             />
           ) : (
+
             <div className="space-y-4 animate-in fade-in">
               <BuildingFlatGrid
                 building={selectedBuilding}

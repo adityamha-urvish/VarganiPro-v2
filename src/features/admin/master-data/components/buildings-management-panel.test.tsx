@@ -229,11 +229,13 @@ describe("Phase 2I: BuildingsManagementPanel Component", () => {
     vi.mocked(masterDataService.fetchStandaloneShops).mockResolvedValue(mockShops);
 
     const onStartGeneralReceipt = vi.fn();
+    const onStartCollection = vi.fn();
 
     render(
       <BuildingsManagementPanel
         organizationId="org-1"
         onStartGeneralReceipt={onStartGeneralReceipt}
+        onStartCollection={onStartCollection}
       />
     );
 
@@ -248,6 +250,13 @@ describe("Phase 2I: BuildingsManagementPanel Component", () => {
       expect(screen.getByText(/General Receipt/)).toBeTruthy();
     });
 
+    // Test shop collect button
+    const collectBtn = screen.getByTestId("btn-collect-admin-shop-shop-1");
+    expect(collectBtn).toBeTruthy();
+    fireEvent.click(collectBtn);
+    expect(onStartCollection).toHaveBeenCalledWith(null, mockShops[0]);
+
+    // Test general receipt trigger
     fireEvent.click(screen.getByText(/General Receipt/));
     expect(onStartGeneralReceipt).toHaveBeenCalled();
   });

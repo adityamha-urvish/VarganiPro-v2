@@ -17,7 +17,11 @@ import type { PaymentMode } from "../components/receipt-creation-form";
 import {
   quickAddFlat,
   quickAddBuilding,
+  quickAddShop,
+  fetchStandaloneShops,
+  type PropertyRecord,
 } from "@/features/admin/master-data/services/master-data.service";
+
 
 export type ActiveCollectionSession = CollectionSessionContext;
 
@@ -42,6 +46,8 @@ export function useBuildingCollection({
   const [selectedProperty, setSelectedProperty] = useState<CachedPropertyProgress | null>(null);
   const [isFastReceiptOpen, setIsFastReceiptOpen] = useState<boolean>(false);
   const [isPendingDrawerOpen, setIsPendingDrawerOpen] = useState<boolean>(false);
+  const [shops, setShops] = useState<PropertyRecord[]>([]);
+  const [loadingShops, setLoadingShops] = useState<boolean>(false);
   const [loadingBuildings, setLoadingBuildings] = useState<boolean>(false);
   const [loadingProperties, setLoadingProperties] = useState<boolean>(false);
   const [fastReceiptCreating, setFastReceiptCreating] = useState<boolean>(false);
@@ -50,34 +56,51 @@ export function useBuildingCollection({
   const effectiveEventId = session?.eventId || eventId;
   const effectiveOrgId = session?.organizationId || organizationId;
 
+  const loadShops = useCallback(async () => {
+    if (!effectiveOrgId) return;
+    setLoadingShops(true);
+    try {
+      const list = await fetchStandaloneShops(effectiveOrgId);
+      setShops(list);
+    } catch (err) {
+      console.error("Error loading commercial shops:", err);
+    } finally {
+      setLoadingShops(false);
+    }
+  }, [effectiveOrgId]);
+
   const loadBuildings = useCallback(async () => {
     if (!effectiveEventId || !effectiveOrgId) return;
     setLoadingBuildings(true);
     try {
       const list = await fetchEventBuildingSummaries(effectiveEventId, effectiveOrgId);
       setBuildings(list);
+      void loadShops();
     } finally {
       setLoadingBuildings(false);
     }
-  }, [effectiveEventId, effectiveOrgId]);
+  }, [effectiveEventId, effectiveOrgId, loadShops]);
+
 
   const selectBuilding = useCallback(
     async (building: CachedBuildingSummary) => {
-      if (!session) return;
+      const orgId = session?.organizationId || organizationId;
+      const evId = session?.eventId || eventId;
+      if (!orgId || !evId) return;
       setSelectedBuilding(building);
       setLoadingProperties(true);
       try {
         const props = await fetchBuildingPropertiesProgress(
-          session.eventId,
+          evId,
           building.buildingId,
-          session.organizationId
+          orgId
         );
         setProperties(props);
       } finally {
         setLoadingProperties(false);
       }
     },
-    [session]
+    [session, organizationId, eventId]
   );
 
   const openPropertyReceipt = useCallback((property: CachedPropertyProgress) => {
@@ -368,6 +391,78 @@ export function useBuildingCollection({
     [session, organizationId, eventId]
   );
 
+  const addShopDirect = useCallback(
+    async (input: {
+      shopName: string;
+      ownerName?: string;
+      contactMobile?: string;
+    }): Promise<CachedPropertyProgress | null> => {
+      const orgId = session?.organizationId || organizationId;
+      const evId = session?.eventId || eventId;
+      if (!orgId || !evId) return null;
+
+      try {
+        const res = await quickAddShop({
+          organizationId: orgId,
+          shopName: input.shopName.trim(),
+          ownerName: input.ownerName?.trim() || undefined,
+          contactMobile: input.contactMobile?.trim() || undefined,
+        });
+
+        const newShopRecord: PropertyRecord = {
+          id: res.propertyId,
+          organizationId: orgId,
+          buildingId: null,
+          propertyType: "commercial",
+          unitNumber: null,
+          flatNumber: null,
+          shopName: res.shopName || input.shopName.trim(),
+          floorNumber: null,
+          ownerName: input.ownerName?.trim() || null,
+          contactMobile: input.contactMobile?.trim() || null,
+          locationNote: null,
+          isActive: true,
+          createdAt: new Date().toISOString(),
+        };
+
+        setShops((prev) => [
+          newShopRecord,
+          ...prev.filter((s) => s.id !== newShopRecord.id),
+        ]);
+
+        const newProperty: CachedPropertyProgress = {
+          propertyId: res.propertyId,
+          buildingId: "",
+          eventId: evId,
+          organizationId: orgId,
+          propertyType: "commercial",
+          unitNumber: "",
+          flatNumber: null,
+          floorNumber: null,
+          shopName: res.shopName || input.shopName.trim(),
+          ownerName: input.ownerName?.trim() || null,
+          contactMobile: input.contactMobile?.trim() || null,
+          status: "not_visited",
+          receiptCount: 0,
+          totalCollectedAmount: 0,
+          latestReceiptNumber: null,
+          lastReceiptAt: null,
+          pendingReason: null,
+          followUpTime: null,
+          followUpNotes: null,
+          followUpAt: null,
+          cachedAt: new Date().toISOString(),
+        };
+
+        return newProperty;
+      } catch (err) {
+        console.error("Error adding commercial shop in session:", err);
+        throw err;
+      }
+    },
+    [session, organizationId, eventId]
+  );
+
   useEffect(() => {
     if (session?.eventId) {
       void loadBuildings();
@@ -382,6 +477,11 @@ export function useBuildingCollection({
     setProperties,
     selectedProperty,
     setSelectedProperty,
+    shops,
+    setShops,
+    loadingShops,
+    loadShops,
+    addShopDirect,
     isFastReceiptOpen,
     setIsFastReceiptOpen,
     isPendingDrawerOpen,
