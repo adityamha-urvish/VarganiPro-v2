@@ -27,6 +27,7 @@ export interface FastReceiptModalProps {
     paymentReference: string | null;
   }) => Promise<void>;
   onOpenPendingDrawer: () => void;
+  onShowMandalQr?: () => void;
 }
 
 export function FastReceiptModal({
@@ -45,6 +46,7 @@ export function FastReceiptModal({
   onStartSession,
   onSubmitReceipt,
   onOpenPendingDrawer,
+  onShowMandalQr,
 }: FastReceiptModalProps) {
   const [amount, setAmount] = useState<string>("501");
   const [paymentMode, setPaymentMode] = useState<PaymentMode>("cash");
@@ -353,6 +355,22 @@ export function FastReceiptModal({
                 placeholder={paymentMode === "upi" ? "UPI Reference / UTR" : "Cheque Number"}
                 className="mt-2 text-xs h-9 rounded-lg"
               />
+            )}
+
+            {paymentMode === "upi" && onShowMandalQr && (
+              <div className="pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  data-testid="btn-fast-receipt-show-qr"
+                  onClick={onShowMandalQr}
+                  className="w-full h-8 text-xs font-bold border-amber-500/40 text-amber-900 dark:text-amber-200 bg-amber-500/10 hover:bg-amber-500/20 flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <span>📲</span>
+                  <span>मंडळ QR दाखवा / Show Mandal QR</span>
+                </Button>
+              </div>
             )}
           </div>
 

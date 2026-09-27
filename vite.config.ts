@@ -92,4 +92,7 @@ export default defineConfig({
       "@": path.resolve(import.meta.dirname, "./src"),
     },
   },
+  optimizeDeps: {
+    include: ["react", "react-dom", "react-dom/client", "html-to-image", "react-hook-form", "react-router-dom"],
+  },
 });

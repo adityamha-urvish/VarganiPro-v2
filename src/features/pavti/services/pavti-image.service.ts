@@ -97,14 +97,16 @@ export async function renderPavtiToBlob(
 ): Promise<Blob> {
   const merged = { ...DEFAULT_OPTIONS, ...options };
 
-  // Create temporary container off-screen
+  // Create temporary container off-screen with full visibility for html-to-image canvas capture
   const container = document.createElement("div");
   container.style.position = "fixed";
-  container.style.top = "-9999px";
   container.style.left = "-9999px";
+  container.style.top = "0";
   container.style.width = "860px";
-  container.style.visibility = "hidden";
+  container.style.visibility = "visible";
+  container.style.opacity = "1";
   container.style.pointerEvents = "none";
+  container.style.zIndex = "-9999";
   document.body.appendChild(container);
 
   const root = createRoot(container);
@@ -118,16 +120,27 @@ export async function renderPavtiToBlob(
           idPrefix: "offscreen-pavti-render",
         })
       );
-      // Allow microtask & font layout to complete
-      setTimeout(resolve, 50);
+      // Allow React commit & layout paint to complete
+      setTimeout(resolve, 60);
     });
+
+    if (typeof document !== "undefined" && document.fonts && document.fonts.ready) {
+      try {
+        await document.fonts.ready;
+      } catch {}
+    }
 
     const cardElement = container.querySelector("#offscreen-pavti-render") as HTMLElement;
     if (!cardElement) {
       throw new Error("Rendered Pavti element not found in DOM");
     }
 
-    return await generatePavtiBlobFromElement(cardElement, merged);
+    const blob = await generatePavtiBlobFromElement(cardElement, merged);
+    if (!blob || blob.size === 0) {
+      throw new Error("Generated Pavti blob is empty (0 bytes)");
+    }
+
+    return blob;
   } finally {
     // Cleanup offscreen DOM
     root.unmount();
@@ -146,6 +159,9 @@ export async function renderPavtiToFile(
 ): Promise<File> {
   const merged = { ...DEFAULT_OPTIONS, ...options };
   const blob = await renderPavtiToBlob(config, receipt, merged);
+  if (!blob || blob.size === 0) {
+    throw new Error("Generated Pavti file blob is empty (0 bytes)");
+  }
   const mimeType = merged.format === "png" ? "image/png" : "image/jpeg";
   const extension = merged.format === "png" ? ".png" : ".jpg";
   const fullFileName = fileName.endsWith(extension) ? fileName : `${fileName}${extension}`;

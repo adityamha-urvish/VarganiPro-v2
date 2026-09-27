@@ -5,6 +5,7 @@ export type NavigationTab =
   | "masterData"
   | "handovers"
   | "history"
+  | "expenses"
   | "more";
 
 export interface RoleNavigationProps {
@@ -24,6 +25,7 @@ export function RoleNavigation({
     { id: "collection", label: "Dashboard", subLabel: "Collection", icon: "🏠" },
     { id: "masterData", label: "Buildings", subLabel: "Buildings & Shops", icon: "🏢" },
     { id: "history", label: "Receipts", subLabel: "Receipts", icon: "📜" },
+    { id: "expenses", label: "Expenses", subLabel: "Festival Expenses", icon: "💸" },
     { id: "handovers", label: "Handover", subLabel: "Handover", icon: "🤝" },
   ];
 
@@ -31,6 +33,7 @@ export function RoleNavigation({
     { id: "collection", label: "Dashboard", subLabel: "Collection", icon: "🏠" },
     { id: "masterData", label: "Buildings", subLabel: "Buildings & Shops", icon: "🏢" },
     { id: "volunteers", label: "Volunteers", subLabel: "Volunteers", icon: "👥" },
+    { id: "expenses", label: "Expenses", subLabel: "Festival Expenses", icon: "💸" },
     { id: "handovers", label: "Handovers", subLabel: "Handovers", icon: "🤝" },
     { id: "history", label: "Receipts", subLabel: "Receipts", icon: "📜" },
     { id: "more", label: "Reports", subLabel: "Admin & More", icon: "📊" },

@@ -27,6 +27,7 @@ export interface MandalHomeScreenProps {
   onNavigateToBooks?: () => void;
   onNavigateToSessionDetails?: () => void;
   onChangeBuilding?: () => void;
+  onShowMandalQr?: () => void;
 }
 
 export function MandalHomeScreen({
@@ -55,6 +56,7 @@ export function MandalHomeScreen({
   onNavigateToBooks,
   onNavigateToSessionDetails,
   onChangeBuilding,
+  onShowMandalQr,
 }: MandalHomeScreenProps) {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   // Extract first name for warm greeting
@@ -339,23 +341,67 @@ export function MandalHomeScreen({
             </div>
           </button>
 
+          {/* SHARED ACTION: Expenses */}
+          <button
+            type="button"
+            data-testid="home-tile-expenses"
+            onClick={() => onNavigateTab("expenses")}
+            className="flex flex-col justify-between p-3.5 rounded-2xl bg-emerald-100/90 hover:bg-emerald-100 border border-emerald-200/90 text-left transition-all active:scale-[0.98] shadow-2xs hover:shadow-xs cursor-pointer group min-h-[92px]"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-2xl group-hover:scale-110 transition-transform">💸</span>
+              <span className="text-emerald-500 group-hover:text-emerald-700 text-sm font-black">→</span>
+            </div>
+            <div>
+              <span className="block font-black text-sm text-emerald-950 leading-tight">
+                Expenses
+              </span>
+              <span className="text-[11px] font-semibold text-emerald-800/80">
+                Festival Expenses
+              </span>
+            </div>
+          </button>
+
+          {/* SHARED ACTION: Mandal QR */}
+          {onShowMandalQr && (
+            <button
+              type="button"
+              data-testid="home-tile-mandal-qr"
+              onClick={onShowMandalQr}
+              className="flex flex-col justify-between p-3.5 rounded-2xl bg-amber-100/90 hover:bg-amber-100 border border-amber-200/90 text-left transition-all active:scale-[0.98] shadow-2xs hover:shadow-xs cursor-pointer group min-h-[92px]"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-2xl group-hover:scale-110 transition-transform">📲</span>
+                <span className="text-amber-500 group-hover:text-amber-700 text-sm font-black">→</span>
+              </div>
+              <div>
+                <span className="block font-black text-sm text-amber-950 leading-tight">
+                  Mandal QR
+                </span>
+                <span className="text-[11px] font-semibold text-amber-800/80">
+                  Scan to Pay UPI
+                </span>
+              </div>
+            </button>
+          )}
+
           {/* ADMIN ACTION: Reports & More */}
           {isAdmin && (
             <button
               type="button"
               data-testid="home-tile-reports"
               onClick={() => onNavigateTab("more")}
-              className="flex flex-col justify-between p-3.5 rounded-2xl bg-amber-100/90 hover:bg-amber-100 border border-amber-200/90 text-left transition-all active:scale-[0.98] shadow-2xs hover:shadow-xs cursor-pointer group min-h-[92px]"
+              className="flex flex-col justify-between p-3.5 rounded-2xl bg-blue-100/90 hover:bg-blue-100 border border-blue-200/90 text-left transition-all active:scale-[0.98] shadow-2xs hover:shadow-xs cursor-pointer group min-h-[92px]"
             >
               <div className="flex items-center justify-between">
                 <span className="text-2xl group-hover:scale-110 transition-transform">📊</span>
-                <span className="text-amber-500 group-hover:text-amber-700 text-sm font-black">→</span>
+                <span className="text-blue-500 group-hover:text-blue-700 text-sm font-black">→</span>
               </div>
               <div>
-                <span className="block font-black text-sm text-amber-950 leading-tight">
+                <span className="block font-black text-sm text-blue-950 leading-tight">
                   Reports & More
                 </span>
-                <span className="text-[11px] font-semibold text-amber-800/80">
+                <span className="text-[11px] font-semibold text-blue-800/80">
                   Analytics & Export
                 </span>
               </div>

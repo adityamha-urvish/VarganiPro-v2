@@ -5,10 +5,13 @@ import {
   generatePavtiDataUrlFromElement,
   generatePavtiBlobFromElement,
   generatePavtiFileFromElement,
+  renderPavtiToBlob,
+  renderPavtiToFile,
   canSharePavtiFile,
   sharePavtiFile,
   downloadImageBlob,
 } from "./pavti-image.service";
+import type { PavtiTemplateConfig, PavtiReceiptData } from "../types/pavti.types";
 
 // Mock html-to-image
 vi.mock("html-to-image", () => ({
@@ -16,12 +19,29 @@ vi.mock("html-to-image", () => ({
   toPng: vi.fn().mockResolvedValue("data:image/png;base64,samplepngdata"),
   toBlob: vi.fn().mockImplementation((_element, options) => {
     const type = options?.type || "image/jpeg";
-    return Promise.resolve(new Blob(["mock-image-bytes"], { type }));
+    return Promise.resolve(new Blob(["mock-image-bytes-non-zero"], { type }));
   }),
 }));
 
 describe("PavtiImageService Tests", () => {
   let mockElement: HTMLElement;
+
+  const mockConfig: PavtiTemplateConfig = {
+    festivalType: "ganpati",
+    mandalName: "श्री गणेश मित्र मंडळ",
+    eventName: "सार्वजनिक गणेशोत्सव २०२६",
+  };
+
+  const mockReceipt: PavtiReceiptData = {
+    receiptNumber: 101,
+    receiptPrefix: "VP-",
+    donorName: "सुनील शिंदे",
+    amount: 1001,
+    paymentMode: "cash",
+    createdAt: new Date().toISOString(),
+    buildingName: "Shivaji Heights",
+    unitNumber: "301",
+  };
 
   beforeEach(() => {
     mockElement = document.createElement("div");
@@ -43,18 +63,35 @@ describe("PavtiImageService Tests", () => {
     const blob = await generatePavtiBlobFromElement(mockElement);
     expect(blob).toBeDefined();
     expect(blob.type).toBe("image/jpeg");
+    expect(blob.size).toBeGreaterThan(0);
   });
 
   it("generates File object with proper .jpg extension", async () => {
     const file = await generatePavtiFileFromElement(mockElement, "receipt-1042");
     expect(file.name).toBe("receipt-1042.jpg");
     expect(file.type).toBe("image/jpeg");
+    expect(file.size).toBeGreaterThan(0);
   });
 
   it("generates File object with proper .png extension when requested", async () => {
     const file = await generatePavtiFileFromElement(mockElement, "receipt-1042", { format: "png" });
     expect(file.name).toBe("receipt-1042.png");
     expect(file.type).toBe("image/png");
+    expect(file.size).toBeGreaterThan(0);
+  });
+
+  it("renderPavtiToBlob renders off-screen and produces a non-zero Blob", async () => {
+    const blob = await renderPavtiToBlob(mockConfig, mockReceipt);
+    expect(blob).toBeDefined();
+    expect(blob.size).toBeGreaterThan(0);
+  });
+
+  it("renderPavtiToFile renders off-screen and produces a valid File", async () => {
+    const file = await renderPavtiToFile(mockConfig, mockReceipt, "Vargani-Pavti-101.jpg");
+    expect(file).toBeDefined();
+    expect(file.name).toBe("Vargani-Pavti-101.jpg");
+    expect(file.size).toBeGreaterThan(0);
+    expect(file.type).toBe("image/jpeg");
   });
 
   it("triggers browser download with expected filename", () => {

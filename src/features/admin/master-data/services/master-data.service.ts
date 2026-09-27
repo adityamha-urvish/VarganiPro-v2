@@ -23,6 +23,10 @@ export interface PropertyRecord {
   ownerName?: string | null;
   contactMobile?: string | null;
   locationNote?: string | null;
+  receiptCount?: number;
+  totalCollectedAmount?: number;
+  latestReceiptNumber?: number | null;
+  lastReceiptAt?: string | null;
   isActive: boolean;
   createdAt: string;
 }

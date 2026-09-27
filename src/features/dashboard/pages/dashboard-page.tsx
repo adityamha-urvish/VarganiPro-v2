@@ -30,6 +30,8 @@ import { VolunteerFinancialLedger } from "@/features/analytics/components/volunt
 import { ReceiptSearchPanel } from "@/features/analytics/components/receipt-search-panel";
 import { CampaignExportPanel } from "@/features/analytics/components/campaign-export-panel";
 import { PavtiCustomizationPanel } from "@/features/pavti/components/pavti-customization-panel";
+import { MandalQrModal } from "@/features/mandal-qr/components/mandal-qr-modal";
+import { ExpensesPanel } from "@/features/expenses/components/expenses-panel";
 import { useSecretaryAnalytics } from "@/features/analytics/hooks/use-secretary-analytics";
 import { useAdminHandovers } from "../hooks/use-admin-handovers";
 import { useBuildingCollection } from "../hooks/use-building-collection";
@@ -50,6 +52,7 @@ export function DashboardPage() {
   const collectionMode = nav.mode === "collect";
 
   const [volunteerSubView, setVolunteerSubView] = useState<"home" | "buildings" | "history" | "handover" | "session">("home");
+  const [isMandalQrOpen, setIsMandalQrOpen] = useState<boolean>(false);
   const [receiptToView, setReceiptToView] =
     useState<LocalReceipt | null>(null);
   const [activeConfirmationReceipt, setActiveConfirmationReceipt] = useState<{
@@ -244,10 +247,11 @@ export function DashboardPage() {
       );
       const nextP = getNextProperty(selectedProperty?.propertyId);
       nav.selectFlatId(null);
+      const isShop = selectedProperty?.propertyType === "commercial" || Boolean(selectedProperty?.shopName);
       setActiveConfirmationReceipt({
         receipt,
-        buildingName: selectedBuilding?.buildingName || null,
-        unitNumber: selectedProperty?.unitNumber || null,
+        buildingName: selectedBuilding?.buildingName || (isShop ? "Commercial" : null),
+        unitNumber: isShop ? (selectedProperty?.shopName || selectedProperty?.unitNumber || null) : (selectedProperty?.unitNumber || null),
         nextProperty: nextP,
       });
     },
@@ -500,6 +504,7 @@ export function DashboardPage() {
                 onChangeBuilding={() => {
                   nav.setTab("masterData");
                 }}
+                onShowMandalQr={() => setIsMandalQrOpen(true)}
               />
             </>
           )}
@@ -1330,6 +1335,19 @@ export function DashboardPage() {
         </div>
       )}
 
+      {/* -------------------------------------------------------------
+          TAB: EXPENSES (VOLUNTEER & ADMIN)
+      -------------------------------------------------------------- */}
+      {activeTab === "expenses" && (
+        <div className="animate-in fade-in">
+          <ExpensesPanel
+            eventId={effectiveEventId}
+            organizationId={session?.organizationId || organizationId}
+            isAdmin={isAdmin}
+          />
+        </div>
+      )}
+
       {/* Global Fast Receipt Modal */}
       <FastReceiptModal
         isOpen={isFastReceiptOpen}
@@ -1352,6 +1370,20 @@ export function DashboardPage() {
         }}
         onSubmitReceipt={submitFastReceipt}
         onOpenPendingDrawer={() => setIsPendingDrawerOpen(true)}
+        onShowMandalQr={() => setIsMandalQrOpen(true)}
+      />
+
+      {/* Global Mandal QR Modal */}
+      <MandalQrModal
+        isOpen={isMandalQrOpen}
+        onClose={() => setIsMandalQrOpen(false)}
+        organizationId={session?.organizationId || organizationId}
+        eventId={effectiveEventId}
+        mandalName="श्री गणेश मित्र मंडळ"
+        eventName={availableEvents.find((e) => e.id === effectiveEventId)?.name || "Ganesh Utsav 2026"}
+        configuredUpiId={(availableEvents.find((e) => e.id === effectiveEventId) as any)?.upi_id}
+        configuredUpiName={(availableEvents.find((e) => e.id === effectiveEventId) as any)?.upi_name}
+        isAdmin={isAdmin}
       />
 
       <PendingReasonDrawer

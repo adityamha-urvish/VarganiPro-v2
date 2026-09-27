@@ -215,7 +215,11 @@ export function ReceiptCreationConfirmation({
             </div>
 
             <div className="text-right">
-              {(buildingName || unitNumber) ? (
+              {buildingName === "Commercial" ? (
+                <div className="text-sm font-bold text-foreground">
+                  🏪 {unitNumber || "Commercial Shop"}
+                </div>
+              ) : (buildingName || unitNumber) ? (
                 <div className="text-sm font-bold text-foreground">
                   {buildingName ? `🏢 ${buildingName}` : ""}{" "}
                   {unitNumber ? `(Flat ${unitNumber})` : ""}

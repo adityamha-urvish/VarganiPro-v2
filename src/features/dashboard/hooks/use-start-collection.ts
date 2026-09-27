@@ -77,7 +77,7 @@ export function useStartCollection({
     try {
       const { data, error } = await supabase
         .from("events")
-        .select("id, name, code, start_date, end_date")
+        .select("id, name, code, start_date, end_date, upi_id, upi_name")
         .eq("is_active", true)
         .order("start_date", { ascending: true });
 

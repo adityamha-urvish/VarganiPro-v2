@@ -149,7 +149,7 @@ export function useBuildingCollection({
       donorMobile: string | null;
       paymentReference: string | null;
     }) => {
-      if (!session || !selectedBuilding || !selectedProperty) return;
+      if (!session || !selectedProperty) return;
       setFastReceiptCreating(true);
       setFastReceiptError(null);
 
@@ -169,25 +169,27 @@ export function useBuildingCollection({
           notes: null,
         });
 
-        // 1. Persist updated property progress to IndexedDB
-        try {
-          await updateLocalPropertyProgress(
-            session.eventId,
-            selectedBuilding.buildingId,
-            input.propertyId,
-            {
-              status: "collected",
-              receiptCount: ((selectedProperty.receiptCount || 0) + 1),
-              totalCollectedAmount: ((selectedProperty.totalCollectedAmount || 0) + input.amount),
-              latestReceiptNumber: receipt.receiptNumber,
-              lastReceiptAt: receipt.offlineCreatedAt,
-            }
-          );
-        } catch (dbErr) {
-          console.warn("Failed to update local property progress in IndexedDB:", dbErr);
+        // 1. Persist updated property progress to IndexedDB (if building-bound)
+        if (selectedBuilding) {
+          try {
+            await updateLocalPropertyProgress(
+              session.eventId,
+              selectedBuilding.buildingId,
+              input.propertyId,
+              {
+                status: "collected",
+                receiptCount: ((selectedProperty.receiptCount || 0) + 1),
+                totalCollectedAmount: ((selectedProperty.totalCollectedAmount || 0) + input.amount),
+                latestReceiptNumber: receipt.receiptNumber,
+                lastReceiptAt: receipt.offlineCreatedAt,
+              }
+            );
+          } catch (dbErr) {
+            console.warn("Failed to update local property progress in IndexedDB:", dbErr);
+          }
         }
 
-        // 2. Update in-memory properties state immediately
+        // 2. Update in-memory properties and shops state immediately
         const updatedProps = properties.map((p) => {
           if (p.propertyId === input.propertyId) {
             return {
@@ -203,6 +205,20 @@ export function useBuildingCollection({
         });
         setProperties(updatedProps);
 
+        setShops((prev) =>
+          prev.map((s) =>
+            s.id === input.propertyId
+              ? {
+                  ...s,
+                  receiptCount: (s.receiptCount || 0) + 1,
+                  totalCollectedAmount: (s.totalCollectedAmount || 0) + input.amount,
+                  latestReceiptNumber: receipt.receiptNumber,
+                  lastReceiptAt: receipt.offlineCreatedAt,
+                }
+              : s
+          )
+        );
+
         onReceiptCreated(receipt);
         void onReceiptHistoryRefresh(session.receiptBookId);
 
@@ -211,7 +227,7 @@ export function useBuildingCollection({
           void onReceiptHistoryRefresh(session.receiptBookId);
         });
 
-        // 4. Close modal and clear selected property (stay on current building grid)
+        // 4. Close modal and clear selected property
         setIsFastReceiptOpen(false);
         setSelectedProperty(null);
       } catch (err: unknown) {
@@ -227,6 +243,7 @@ export function useBuildingCollection({
       selectedBuilding,
       selectedProperty,
       properties,
+      setShops,
       onReceiptCreated,
       onReceiptHistoryRefresh,
     ]
