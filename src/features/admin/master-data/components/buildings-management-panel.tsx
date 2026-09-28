@@ -253,55 +253,24 @@ export function BuildingsManagementPanel({
     <div className="space-y-4 w-full box-border">
       
       {/* -------------------------------------------------------------
-          1. TOP NAVIGATION & GENERAL AD HOC RECEIPT ACTION
+          1. TOP ACTION BAR (General Receipt & Add Building/Shop Actions)
       -------------------------------------------------------------- */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-3">
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
+      <div className="flex items-center justify-between gap-2 flex-wrap pb-1">
+        {onStartGeneralReceipt ? (
+          <Button
             type="button"
-            data-testid="subtab-buildings"
-            onClick={() => {
-              setSubTab("buildings");
-              setSelectedBuilding(null);
-            }}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              subTab === "buildings"
-                ? "bg-slate-900 text-white shadow-xs"
-                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-            }`}
+            variant="outline"
+            size="sm"
+            onClick={onStartGeneralReceipt}
+            className="text-xs font-bold border-amber-300 text-amber-900 hover:bg-amber-50 h-8"
           >
-            🏢 Residential Buildings (इमारती)
-          </button>
-          <button
-            type="button"
-            data-testid="subtab-shops"
-            onClick={() => {
-              setSubTab("shops");
-              setSelectedBuilding(null);
-            }}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              subTab === "shops"
-                ? "bg-slate-900 text-white shadow-xs"
-                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-            }`}
-          >
-            🏪 Commercial Shops (दुकाने)
-          </button>
-        </div>
+            ⚡ + General Receipt (मंडप पावती)
+          </Button>
+        ) : (
+          <div />
+        )}
 
         <div className="flex items-center gap-2">
-          {onStartGeneralReceipt && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onStartGeneralReceipt}
-              className="text-xs font-bold border-amber-300 text-amber-900 hover:bg-amber-50 h-8"
-            >
-              ⚡ + General Receipt (मंडप पावती)
-            </Button>
-          )}
-
           {subTab === "buildings" && !selectedBuilding && (
             <Button
               type="button"
@@ -309,10 +278,60 @@ export function BuildingsManagementPanel({
               onClick={() => setShowAddBuilding(true)}
               className="bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs h-8 cursor-pointer"
             >
-              ➕ Add Building (इमारत जोडा)
+              ➕ Add Building
+            </Button>
+          )}
+
+          {subTab === "shops" && (
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => setShowAddShop(true)}
+              className="bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs h-8 cursor-pointer"
+            >
+              ➕ Add Shop
             </Button>
           )}
         </div>
+      </div>
+
+      {/* -------------------------------------------------------------
+          2. SEGMENTED FILTER: RESIDENTIAL / COMMERCIAL (Identical to Volunteer)
+      -------------------------------------------------------------- */}
+      <div className="flex items-center gap-2 bg-slate-100/90 p-1 rounded-2xl border border-slate-200/80">
+        <button
+          type="button"
+          data-testid="subtab-buildings"
+          onClick={() => {
+            setSubTab("buildings");
+            setSelectedBuilding(null);
+          }}
+          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            subTab === "buildings"
+              ? "bg-[#0B2530] text-white shadow-xs"
+              : "text-slate-600 hover:text-slate-900"
+          }`}
+        >
+          <span>🏢</span>
+          <span>Residential ({buildings.length})</span>
+        </button>
+
+        <button
+          type="button"
+          data-testid="subtab-shops"
+          onClick={() => {
+            setSubTab("shops");
+            setSelectedBuilding(null);
+          }}
+          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            subTab === "shops"
+              ? "bg-[#0B2530] text-white shadow-xs"
+              : "text-slate-600 hover:text-slate-900"
+          }`}
+        >
+          <span>🏪</span>
+          <span>Commercial ({shops.length})</span>
+        </button>
       </div>
 
       {/* -------------------------------------------------------------

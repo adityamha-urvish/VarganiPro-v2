@@ -239,11 +239,11 @@ describe("Phase 2I: BuildingsManagementPanel Component", () => {
       />
     );
 
-    // Switch to Shops tab
+    // Switch to Commercial Shops tab
     await waitFor(() => {
-      expect(screen.getByText(/Commercial Shops/)).toBeTruthy();
+      expect(screen.getByTestId("subtab-shops")).toBeTruthy();
     });
-    fireEvent.click(screen.getByText(/Commercial Shops/));
+    fireEvent.click(screen.getByTestId("subtab-shops"));
 
     await waitFor(() => {
       expect(screen.getByText(/Laxmi Kirana Store/)).toBeTruthy();

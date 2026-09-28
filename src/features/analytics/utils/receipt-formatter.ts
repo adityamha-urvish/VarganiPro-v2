@@ -35,19 +35,20 @@ export function isReceiptPrefixValid(prefix?: string | null): boolean {
 export type FestivalKind = "ganesh" | "navratri" | "other";
 
 /**
- * Resolves festival kind from event name and mandal name.
+ * Resolves festival kind from event name, mandal name, and physical book prefix.
  * Maps:
- * - Navratri / Durga / Mata / Devi / Dussehra -> 'navratri'
- * - Ganesh / Ganpati / Bappa / Vinayak -> 'ganesh'
+ * - Navratri / Durga / Mata / Devi / Dussehra / NU-* / NR-* / DU-* -> 'navratri'
+ * - Ganesh / Ganpati / Bappa / Vinayak / GU-* / GP-* -> 'ganesh'
  * - All other / unknown festivals -> 'other' (neutral)
  */
 export function resolveFestivalKind(
   eventName?: string | null,
-  mandalName?: string | null
+  mandalName?: string | null,
+  receiptPrefix?: string | null
 ): FestivalKind {
   const text = `${eventName || ""} ${mandalName || ""}`.toLowerCase();
 
-  // 1. Check Navratri / Durga / Mata / Devi
+  // 1. Check explicit Navratri / Durga / Mata / Devi keywords
   if (
     text.includes("navratri") ||
     text.includes("navratra") ||
@@ -70,7 +71,7 @@ export function resolveFestivalKind(
     return "navratri";
   }
 
-  // 2. Check Ganesh / Ganpati / Bappa / Vinayak
+  // 2. Check explicit Ganesh / Ganpati / Bappa / Vinayak keywords
   if (
     text.includes("ganesh") ||
     text.includes("ganpati") ||
@@ -82,6 +83,25 @@ export function resolveFestivalKind(
     text.includes("chaturthi") ||
     text.includes("विनायक") ||
     text.includes("vinayak")
+  ) {
+    return "ganesh";
+  }
+
+  // 3. Fallback to physical book prefix triggers if explicit event/mandal is unlisted/neutral
+  const cleanPrefix = (receiptPrefix || "").trim().toUpperCase();
+  if (
+    cleanPrefix.startsWith("NU") ||
+    cleanPrefix.startsWith("NR") ||
+    cleanPrefix.startsWith("DU") ||
+    cleanPrefix.startsWith("NV")
+  ) {
+    return "navratri";
+  }
+
+  if (
+    cleanPrefix.startsWith("GU") ||
+    cleanPrefix.startsWith("GN") ||
+    cleanPrefix.startsWith("GP")
   ) {
     return "ganesh";
   }
@@ -103,15 +123,16 @@ export interface FestivalGreetings {
  */
 export function getFestivalGreetings(
   eventName?: string | null,
-  mandalName?: string | null
+  mandalName?: string | null,
+  receiptPrefix?: string | null
 ): FestivalGreetings {
-  const kind = resolveFestivalKind(eventName, mandalName);
+  const kind = resolveFestivalKind(eventName, mandalName, receiptPrefix);
   switch (kind) {
     case "navratri":
       return {
         kind: "navratri",
         headerDevotional: "🚩 जय माता दी 🚩",
-        closingGreeting: "आपल्या सहकार्याबद्दल धन्यवाद!\nजय माता दी! 🙏🌺",
+        closingGreeting: "आपल्या सहकार्याबद्दल धन्यवाद!\nजय माता दी! 🌺",
         mantra: "॥ श्री कुलस्वामिनी प्रसन्न ॥",
         artworkType: "navratri",
       };

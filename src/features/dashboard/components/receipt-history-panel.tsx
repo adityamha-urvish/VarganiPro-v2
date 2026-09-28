@@ -53,6 +53,8 @@ export type ReceiptHistoryPanelProps = {
   receiptPrefix: string;
   sessionStatus: string;
   loading: boolean;
+  mandalName?: string;
+  eventName?: string;
   onRefresh: () => void;
   onSyncNext: () => void;
   onViewReceipt: (receipt: LocalReceipt) => void;
@@ -64,6 +66,8 @@ export function ReceiptHistoryPanel({
   receiptPrefix,
   sessionStatus,
   loading,
+  mandalName,
+  eventName,
   onRefresh,
   onSyncNext,
   onViewReceipt,
@@ -243,6 +247,8 @@ export function ReceiptHistoryPanel({
                       donorName: receipt.donorName,
                       donorMobile: receipt.donorMobile,
                       createdAt: receipt.createdAt || receipt.offlineCreatedAt,
+                      mandalName: mandalName || (receipt as unknown as { mandalName?: string }).mandalName,
+                      eventName: eventName || (receipt as unknown as { eventName?: string }).eventName,
                     });
                     openWhatsAppShare(share.url);
                   }}

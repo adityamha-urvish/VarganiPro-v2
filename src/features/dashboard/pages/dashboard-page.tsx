@@ -810,9 +810,11 @@ export function DashboardPage() {
 
                       <ReceiptHistoryPanel
                         receipts={receipts}
-                        receiptPrefix={session?.prefix || "VP-"}
+                        receiptPrefix={session?.prefix || ""}
                         sessionStatus={session?.sessionStatus || "open"}
                         loading={historyLoading}
+                        mandalName={mandalDetails.mandalName}
+                        eventName={mandalDetails.eventName}
                         onRefresh={() => {
                           if (session?.receiptBookId) {
                             void loadReceiptHistory(session.receiptBookId);
@@ -1125,6 +1127,8 @@ export function DashboardPage() {
                         receiptPrefix={session.prefix}
                         sessionStatus={session.sessionStatus}
                         loading={historyLoading}
+                        mandalName={mandalDetails.mandalName}
+                        eventName={mandalDetails.eventName}
                         onRefresh={() => void loadReceiptHistory(session.receiptBookId)}
                         onSyncNext={() => void handleSyncNextReceipt()}
                         onViewReceipt={(receipt) => setReceiptToView(receipt)}
@@ -1243,9 +1247,11 @@ export function DashboardPage() {
 
               <ReceiptHistoryPanel
                 receipts={receipts}
-                receiptPrefix={session?.prefix || "VP-"}
+                receiptPrefix={session?.prefix || ""}
                 sessionStatus={session?.sessionStatus || "open"}
                 loading={historyLoading}
+                mandalName={mandalDetails.mandalName}
+                eventName={mandalDetails.eventName}
                 onRefresh={() => {
                   if (session?.receiptBookId) {
                     void loadReceiptHistory(session.receiptBookId);

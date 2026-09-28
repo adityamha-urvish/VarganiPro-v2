@@ -11,7 +11,7 @@ import {
 describe('WhatsApp Receipt Sharing Utility (whatsapp-share.ts)', () => {
   const baseReceipt: WhatsAppReceiptInput = {
     receiptNumber: 262,
-    receiptPrefix: 'NU-',
+    receiptPrefix: 'GU-',
     amount: 501,
     paymentMode: 'cash',
     donorName: 'राहुल शिंदे',
@@ -47,11 +47,11 @@ describe('WhatsApp Receipt Sharing Utility (whatsapp-share.ts)', () => {
     });
 
     it('4. receipt with missing prefix is NOT shareable (never synthesize synthetic numbers)', () => {
-      const res1 = checkShareEligibility({ ...baseReceipt, receiptPrefix: undefined });
+      const res1 = checkShareEligibility({ ...baseReceipt, receiptPrefix: undefined, bookPrefix: undefined });
       expect(res1.isShareable).toBe(false);
       expect(res1.reason).toContain('पावती क्रमांक उपलब्ध नाही');
 
-      const res2 = checkShareEligibility({ ...baseReceipt, receiptPrefix: '' });
+      const res2 = checkShareEligibility({ ...baseReceipt, receiptPrefix: '', bookPrefix: '' });
       expect(res2.isShareable).toBe(false);
     });
 
@@ -117,6 +117,21 @@ describe('WhatsApp Receipt Sharing Utility (whatsapp-share.ts)', () => {
       expect(res.isShareable).toBe(true);
       expect(res.code).toBe('ELIGIBLE');
     });
+
+    it('10b. supports bookPrefix property when receiptPrefix is unset', () => {
+      const res = checkShareEligibility({
+        receiptNumber: 263,
+        bookPrefix: 'NU-',
+        amount: 500,
+        paymentMode: 'cash',
+        donorName: 'Donor',
+        createdAt: '2026-08-30T10:00:00Z',
+        id: 'rec-uuid-5678',
+        status: 'issued',
+      });
+      expect(res.isShareable).toBe(true);
+      expect(res.code).toBe('ELIGIBLE');
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -173,14 +188,14 @@ describe('WhatsApp Receipt Sharing Utility (whatsapp-share.ts)', () => {
       const msg = formatWhatsAppReceiptMessage(baseReceipt);
       expect(msg).toContain('🚩 *श्री गणेश मित्र मंडळ* 🚩');
       expect(msg).toContain('*वर्गणी पावती / Donation Receipt*');
-      expect(msg).toContain('*पावती क्र. / Receipt No.:* NU-262');
+      expect(msg).toContain('*पावती क्र. / Receipt No.:* GU-262');
       expect(msg).toContain('*देणगीदार / Donor:* राहुल शिंदे');
       expect(msg).toContain('*रक्कम / Amount:* ₹501.00 (रोख / Cash)');
       expect(msg).toContain('आपल्या सहकार्याबद्दल धन्यवाद!');
       expect(msg).toContain('गणपती बाप्पा मोरया! 🌺');
     });
 
-    it('19. builds Navratri message with Jai Mata Di closing', () => {
+    it('19. builds Navratri message with Jai Mata Di closing for Navratri event', () => {
       const navratriReceipt: WhatsAppReceiptInput = {
         ...baseReceipt,
         mandalName: 'श्री दुर्गा माता उत्सव मंडळ',
@@ -191,7 +206,22 @@ describe('WhatsApp Receipt Sharing Utility (whatsapp-share.ts)', () => {
       const msg = formatWhatsAppReceiptMessage(navratriReceipt);
       expect(msg).toContain('🚩 *श्री दुर्गा माता उत्सव मंडळ* 🚩');
       expect(msg).toContain('*पावती क्र. / Receipt No.:* NU-262');
-      expect(msg).toContain('जय माता दी! 🙏🌺');
+      expect(msg).toContain('जय माता दी! 🌺');
+      expect(msg).not.toContain('गणपती बाप्पा मोरया');
+    });
+
+    it('19b. builds Navratri message with Jai Mata Di closing from NU- prefix alone (NU-263 test case)', () => {
+      const nuReceipt: WhatsAppReceiptInput = {
+        receiptNumber: 263,
+        receiptPrefix: 'NU-',
+        amount: 500,
+        paymentMode: 'cash',
+        donorName: 'सचिन सावंत',
+        createdAt: '2026-09-28T10:30:00.000Z',
+      };
+      const msg = formatWhatsAppReceiptMessage(nuReceipt);
+      expect(msg).toContain('*पावती क्र. / Receipt No.:* NU-263');
+      expect(msg).toContain('जय माता दी! 🌺');
       expect(msg).not.toContain('गणपती बाप्पा मोरया');
     });
 
@@ -200,7 +230,7 @@ describe('WhatsApp Receipt Sharing Utility (whatsapp-share.ts)', () => {
         ...baseReceipt,
         mandalName: 'समाज सेवा संस्था',
         eventName: 'वार्षिक उत्सव २०२६',
-        receiptPrefix: 'VP-',
+        receiptPrefix: 'BK1-',
       };
       const msg = formatWhatsAppReceiptMessage(neutralReceipt);
       expect(msg).toContain('🚩 *समाज सेवा संस्था* 🚩');
@@ -257,12 +287,31 @@ describe('WhatsApp Receipt Sharing Utility (whatsapp-share.ts)', () => {
   // 5. WhatsApp Share URL Generation
   // ---------------------------------------------------------------------------
   describe('WhatsApp Share URL (buildWhatsAppShareUrl)', () => {
-    it('25. builds targeted wa.me URL for valid Indian mobile', () => {
+    it('25. builds targeted wa.me URL for valid Indian mobile with Ganesh receipt', () => {
       const res = buildWhatsAppShareUrl(baseReceipt);
       expect(res.isTargeted).toBe(true);
       expect(res.targetMobile).toBe('919820012345');
       expect(res.url).toContain('https://wa.me/919820012345?text=');
-      expect(res.url).toContain(encodeURIComponent('NU-262'));
+      expect(res.url).toContain(encodeURIComponent('GU-262'));
+      expect(res.url).toContain(encodeURIComponent('गणपती बाप्पा मोरया! 🌺'));
+    });
+
+    it('25b. builds targeted wa.me URL for Navratri receipt with Jai Mata Di greeting', () => {
+      const nuReceipt: WhatsAppReceiptInput = {
+        receiptNumber: 263,
+        receiptPrefix: 'NU-',
+        amount: 500,
+        paymentMode: 'cash',
+        donorName: 'सचिन सावंत',
+        donorMobile: '9820054321',
+        createdAt: '2026-09-28T10:30:00.000Z',
+      };
+      const res = buildWhatsAppShareUrl(nuReceipt);
+      expect(res.isTargeted).toBe(true);
+      expect(res.targetMobile).toBe('919820054321');
+      expect(res.url).toContain(encodeURIComponent('NU-263'));
+      expect(res.url).toContain(encodeURIComponent('जय माता दी! 🌺'));
+      expect(res.url).not.toContain(encodeURIComponent('गणपती बाप्पा मोरया'));
     });
 
     it('26. builds generic wa.me URL when donor mobile is absent', () => {

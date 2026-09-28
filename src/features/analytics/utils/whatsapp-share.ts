@@ -12,6 +12,7 @@ import {
 export interface WhatsAppReceiptInput {
   receiptNumber: number;
   receiptPrefix?: string | null;
+  bookPrefix?: string | null;
   amount: number;
   paymentMode: string;
   paymentReference?: string | null;
@@ -112,7 +113,8 @@ export function checkShareEligibility(receipt: WhatsAppReceiptInput | null | und
   }
 
   // Check physical book prefix validity (block if prefix cannot be resolved)
-  if (!isReceiptPrefixValid(receipt.receiptPrefix)) {
+  const effectivePrefix = receipt.receiptPrefix || receipt.bookPrefix;
+  if (!isReceiptPrefixValid(effectivePrefix)) {
     return {
       isShareable: false,
       reason: 'पावती क्रमांक उपलब्ध नाही (Receipt book prefix unavailable)',
@@ -205,15 +207,16 @@ export function formatReceiptDateTime(dateStr: string): string {
  * Constructs the concise Marathi-first bilingual WhatsApp message.
  */
 export function formatWhatsAppReceiptMessage(input: WhatsAppReceiptInput): string {
+  const effectivePrefix = input.receiptPrefix || input.bookPrefix || '';
   const receiptCode = formatReceiptCode({
     receiptNumber: input.receiptNumber,
-    receiptPrefix: input.receiptPrefix,
+    receiptPrefix: effectivePrefix,
   });
   const mandalOrEvent = input.mandalName || input.eventName || 'उत्सव वर्गणी';
   const modeLabel = formatPaymentModeLabel(input.paymentMode);
   const formattedDate = formatReceiptDateTime(input.createdAt);
   const amountStr = `₹${input.amount.toFixed(2)}`;
-  const greetings = getFestivalGreetings(input.eventName, input.mandalName);
+  const greetings = getFestivalGreetings(input.eventName, input.mandalName, effectivePrefix);
 
   const lines: string[] = [];
 

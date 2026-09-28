@@ -93,6 +93,8 @@ export function ReceiptPreviewDialog({
   const shareEligibility = checkShareEligibility({
     ...receipt,
     receiptPrefix: effectivePrefix,
+    mandalName: receipt.mandalName,
+    eventName: receipt.eventName,
     status: isVoided ? "voided" : receipt.status,
     voidedAt: localVoidedState?.voidedAt || receipt.voidedAt,
     voidReason: localVoidedState?.voidReason || receipt.voidReason,
@@ -101,6 +103,8 @@ export function ReceiptPreviewDialog({
   const shareDetails = buildWhatsAppShareUrl({
     ...receipt,
     receiptPrefix: effectivePrefix,
+    mandalName: receipt.mandalName,
+    eventName: receipt.eventName,
     status: isVoided ? "voided" : receipt.status,
   } as WhatsAppReceiptInput);
 

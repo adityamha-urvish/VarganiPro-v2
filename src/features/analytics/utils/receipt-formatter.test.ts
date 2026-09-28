@@ -34,6 +34,26 @@ describe("Receipt Formatter & Festival Resolver", () => {
   });
 
   describe("resolveFestivalKind", () => {
+    it("prioritizes explicit event context over receipt prefix", () => {
+      // Explicit Ganesh event with NU- prefix should resolve to ganesh
+      expect(resolveFestivalKind("सार्वजनिक गणेशोत्सव २०२६", "श्री गणेश मंडळ", "NU-")).toBe("ganesh");
+      // Explicit Navratri event with GU- prefix should resolve to navratri
+      expect(resolveFestivalKind("Navratri Utsav 2026", "Durga Mandal", "GU-")).toBe("navratri");
+    });
+
+    it("identifies Navratri from physical book prefix triggers (NU-, NR-, DU-, NV-) when event is neutral or absent", () => {
+      expect(resolveFestivalKind(null, null, "NU-")).toBe("navratri");
+      expect(resolveFestivalKind(null, null, "NR")).toBe("navratri");
+      expect(resolveFestivalKind("General Campaign", "Mandal Trust", "NU-")).toBe("navratri");
+      expect(resolveFestivalKind(null, null, "DU-1")).toBe("navratri");
+    });
+
+    it("identifies Ganesh from physical book prefix triggers (GU-, GN-, GP-) when event is neutral or absent", () => {
+      expect(resolveFestivalKind(null, null, "GU-")).toBe("ganesh");
+      expect(resolveFestivalKind(null, null, "GN")).toBe("ganesh");
+      expect(resolveFestivalKind("General Campaign", "Mandal Trust", "GU-")).toBe("ganesh");
+    });
+
     it("identifies Navratri from various English and Marathi keywords", () => {
       expect(resolveFestivalKind("Navratri Utsav 2026", "Shree Durga Mandal")).toBe("navratri");
       expect(resolveFestivalKind("नवरात्रौत्सव २०२६", "देवी मंडळ")).toBe("navratri");
@@ -53,6 +73,7 @@ describe("Receipt Formatter & Festival Resolver", () => {
       expect(resolveFestivalKind("Annual Gathering 2026", "Samaj Seva Trust")).toBe("other");
       expect(resolveFestivalKind("Diwali Utsav")).toBe("other");
       expect(resolveFestivalKind(null, null)).toBe("other");
+      expect(resolveFestivalKind(null, null, "BK1-")).toBe("other");
     });
   });
 
@@ -61,9 +82,16 @@ describe("Receipt Formatter & Festival Resolver", () => {
       const g = getFestivalGreetings("Navratri Utsav 2026");
       expect(g.kind).toBe("navratri");
       expect(g.headerDevotional).toBe("🚩 जय माता दी 🚩");
-      expect(g.closingGreeting).toContain("जय माता दी! 🙏🌺");
+      expect(g.closingGreeting).toBe("आपल्या सहकार्याबद्दल धन्यवाद!\nजय माता दी! 🌺");
       expect(g.mantra).toBe("॥ श्री कुलस्वामिनी प्रसन्न ॥");
       expect(g.artworkType).toBe("navratri");
+    });
+
+    it("returns Navratri greetings when triggered by NU- receipt prefix", () => {
+      const g = getFestivalGreetings(null, null, "NU-");
+      expect(g.kind).toBe("navratri");
+      expect(g.headerDevotional).toBe("🚩 जय माता दी 🚩");
+      expect(g.closingGreeting).toContain("जय माता दी! 🌺");
     });
 
     it("returns Ganesh greetings with Ganpati Bappa Morya", () => {
