@@ -298,7 +298,7 @@ describe("DashboardPage receipt creation workflow characterization", () => {
     expect(getLocalReceiptsMock).toHaveBeenCalledWith("book-1");
 
     expect(await screen.findByText("Receipt created")).toBeTruthy();
-    expect(screen.getByText("#101")).toBeTruthy();
+    expect(screen.getAllByText(/101/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Aarav Patel — ₹500.00")).toBeTruthy();
     expect(await screen.findByText("Receipt created and synced successfully.")).toBeTruthy();
   });

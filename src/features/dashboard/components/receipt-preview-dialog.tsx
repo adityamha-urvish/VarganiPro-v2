@@ -12,6 +12,7 @@ import {
   openWhatsAppShare,
   type WhatsAppReceiptInput,
 } from "@/features/analytics/utils/whatsapp-share";
+import { formatReceiptCode } from "@/features/analytics/utils/receipt-formatter";
 import { DigitalPavtiCard } from "@/features/pavti/components/digital-pavti-card";
 import { loadPavtiConfig } from "@/features/pavti/services/pavti-config.service";
 import {
@@ -82,9 +83,16 @@ export function ReceiptPreviewDialog({
   const displayVoidedAt =
     localVoidedState?.voidedAt || receipt.voidedAt || null;
 
+  const effectivePrefix = (receipt as unknown as { receiptPrefix?: string }).receiptPrefix || receiptPrefix;
+  const formattedCode = formatReceiptCode({
+    receiptNumber: receipt.receiptNumber,
+    receiptPrefix: effectivePrefix,
+  });
+
   // Canonical share eligibility evaluation
   const shareEligibility = checkShareEligibility({
     ...receipt,
+    receiptPrefix: effectivePrefix,
     status: isVoided ? "voided" : receipt.status,
     voidedAt: localVoidedState?.voidedAt || receipt.voidedAt,
     voidReason: localVoidedState?.voidReason || receipt.voidReason,
@@ -92,7 +100,7 @@ export function ReceiptPreviewDialog({
 
   const shareDetails = buildWhatsAppShareUrl({
     ...receipt,
-    receiptPrefix,
+    receiptPrefix: effectivePrefix,
     status: isVoided ? "voided" : receipt.status,
   } as WhatsAppReceiptInput);
 
@@ -178,36 +186,36 @@ export function ReceiptPreviewDialog({
           className="max-h-[90vh] w-full max-w-xl overflow-auto rounded-xl bg-background shadow-xl"
           onClick={(event) => event.stopPropagation()}
         >
-          <div className="flex items-center justify-between border-b p-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg font-semibold">Receipt Details</h2>
-                {isVoided && (
-                  <span className="px-2 py-0.5 rounded-md text-xs font-black bg-red-100 text-red-800 border border-red-300">
-                    रद्द (VOIDED)
-                  </span>
-                )}
+          <div className="border-b p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-semibold">Receipt Details</h2>
+                  {isVoided && (
+                    <span className="px-2 py-0.5 rounded-md text-xs font-black bg-red-100 text-red-800 border border-red-300">
+                      रद्द (VOIDED)
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm font-mono font-bold text-muted-foreground mt-0.5">
+                  {formattedCode}
+                </p>
               </div>
-              <p className="text-sm text-muted-foreground">
-                {receiptPrefix}
-                {receipt.receiptNumber}
-              </p>
-            </div>
 
-            <div className="flex items-center gap-2">
-              {/* JPG Download Action */}
               <Button
                 type="button"
-                variant="outline"
+                variant="ghost"
                 size="sm"
-                disabled={isGeneratingImage}
-                onClick={handleDownloadJpg}
-                title="पावती इमेज डाउनलोड करा (Download JPG)"
-                className="text-xs font-bold border-amber-300 text-amber-900 bg-amber-50 hover:bg-amber-100 cursor-pointer"
+                onClick={onClose}
+                aria-label="Close"
+                className="cursor-pointer text-slate-500 hover:text-slate-900"
               >
-                {isGeneratingImage ? "तयार होत आहे..." : "🖼️ पावती JPG"}
+                ✕
               </Button>
+            </div>
 
+            {/* ACTION BUTTON ROW (RESPONSIVE FLEX-WRAP) */}
+            <div className="flex items-center gap-2 flex-wrap pt-1">
               {/* WhatsApp Share Action with Canonical Gate */}
               <Button
                 type="button"
@@ -224,6 +232,29 @@ export function ReceiptPreviewDialog({
                 📲 WhatsApp
               </Button>
 
+              {/* JPG Download Action */}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isGeneratingImage}
+                onClick={handleDownloadJpg}
+                title="पावती इमेज डाउनलोड करा (Download JPG)"
+                className="text-xs font-bold border-amber-300 text-amber-900 bg-amber-50 hover:bg-amber-100 cursor-pointer"
+              >
+                {isGeneratingImage ? "तयार होत आहे..." : "🖼️ पावती JPG"}
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => onPrint(receipt)}
+                className="text-xs font-semibold"
+              >
+                🖨️ Print
+              </Button>
+
               {/* Void action strictly for Admin on non-voided receipts */}
               {isAdmin && !isVoided && (
                 <Button
@@ -236,19 +267,6 @@ export function ReceiptPreviewDialog({
                   ✕ पावती रद्द करा (Void)
                 </Button>
               )}
-
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => onPrint(receipt)}
-              >
-                Print
-              </Button>
-
-              <Button type="button" variant="ghost" size="sm" onClick={onClose}>
-                Close
-              </Button>
             </div>
           </div>
 
@@ -302,7 +320,10 @@ export function ReceiptPreviewDialog({
           <div className="p-4 sm:p-6 flex justify-center bg-slate-100/60 border-b">
             <DigitalPavtiCard
               config={loadPavtiConfig(receipt.organizationId, receipt.mandalName, receipt.eventName)}
-              receipt={receipt}
+              receipt={{
+                ...receipt,
+                receiptPrefix: effectivePrefix,
+              }}
             />
           </div>
 

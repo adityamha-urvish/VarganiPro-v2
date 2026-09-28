@@ -1,6 +1,10 @@
 import type { PavtiTemplateConfig, PavtiReceiptData } from "../types/pavti.types";
 import { numberToMarathiWords } from "../utils/marathi-words";
 import {
+  formatReceiptCode,
+  resolveFestivalKind,
+} from "@/features/analytics/utils/receipt-formatter";
+import {
   GaneshaArtwork,
   DurgaArtwork,
   NeutralMandalaArtwork,
@@ -23,17 +27,19 @@ export function DigitalPavtiCard({
   idPrefix = "digital-pavti-card",
 }: DigitalPavtiCardProps) {
   const {
-    festivalType = "ganpati",
-    mandalName = "श्री गणेश मित्र मंडळ",
-    eventName = "सार्वजनिक गणेशोत्सव २०२६",
+    mandalName = "उत्सव मंडळ",
+    eventName = "उत्सव २०२६",
     yearText,
-    secretaryName = "अक्षय जोशी",
+    secretaryName = "अध्यक्ष / खजिनदार",
     secretaryDesignation = "अध्यक्ष / खजिनदार",
   } = config;
 
+  const festivalType =
+    config.festivalType || resolveFestivalKind(eventName, mandalName);
+
   const {
     receiptNumber,
-    receiptPrefix = "VP-",
+    receiptPrefix,
     donorName,
     amount,
     paymentMode,
@@ -88,9 +94,16 @@ export function DigitalPavtiCard({
   const isShop = propertyType === "commercial";
 
   // Theme-specific styles
-  const isGanpati = festivalType === "ganpati";
-  const isNavratri = festivalType === "navratri";
-  const isOther = festivalType === "other";
+  const normalizedFestival =
+    festivalType === "navratri"
+      ? "navratri"
+      : festivalType === "other"
+      ? "other"
+      : "ganpati";
+
+  const isGanpati = normalizedFestival === "ganpati";
+  const isNavratri = normalizedFestival === "navratri";
+  const isOther = normalizedFestival === "other";
 
   const themeColors = {
     ganpati: {
@@ -132,19 +145,7 @@ export function DigitalPavtiCard({
       mantra: null,
       greeting: null,
     },
-  }[festivalType] || {
-    primary: "#7A0C0C",
-    accent: "#D9531E",
-    border: "#8B1D1D",
-    gold: "#C89D3C",
-    bg: "#FFFDF7",
-    ribbonBg: "#7A0C0C",
-    amountBg: "#D9531E",
-    badgeBorder: "#8B1D1D",
-    cornerColor: "#7A0C0C",
-    mantra: "॥ श्री गणेशाय नमः ॥",
-    greeting: "गणपती बाप्पा मोरया ! 🙏",
-  };
+  }[normalizedFestival];
 
   const mandalNameLen = (mandalName || "").length;
   const mandalFontSizeClass =
@@ -292,7 +293,7 @@ export function DigitalPavtiCard({
               className="font-mono font-bold px-2 py-0.5 rounded text-white text-[11px] sm:text-xs"
               style={{ backgroundColor: themeColors.primary }}
             >
-              {receiptPrefix}{receiptNumber}
+              {formatReceiptCode({ receiptNumber, receiptPrefix })}
             </span>
           </div>
 

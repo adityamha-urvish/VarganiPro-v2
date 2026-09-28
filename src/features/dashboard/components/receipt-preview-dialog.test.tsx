@@ -47,7 +47,7 @@ describe("ReceiptPreviewDialog", () => {
     );
 
     expect(screen.getAllByText(/VP-1042/).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText("Print")).toBeTruthy();
+    expect(screen.getByText(/Print/i)).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Void/i })).toBeNull();
   });
 

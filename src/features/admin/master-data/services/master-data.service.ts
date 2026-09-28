@@ -365,3 +365,27 @@ export async function quickAddShop(params: {
     shopName: data.shop_name,
   };
 }
+
+export async function setActiveEvent(
+  eventId: string
+): Promise<{ success: boolean; activeEventId?: string; error?: string }> {
+  try {
+    const { data, error } = await supabase.rpc("set_active_event", {
+      p_event_id: eventId,
+    });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return {
+      success: true,
+      activeEventId: (data as any)?.active_event_id,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to activate event",
+    };
+  }
+}

@@ -154,16 +154,48 @@ function setupSupabaseTables(options: {
       };
     }
 
-    if (table === "events") {
+    if (table === "organizations") {
       return {
         select: () => ({
-          eq: (field: string, val: unknown) => ({
-            order: async () => ({
-              data: field === "is_active" && val === true ? events : [],
+          eq: () => ({
+            maybeSingle: async () => ({
+              data: { id: "org-1", name: "श्री गणेश मित्र मंडळ" },
               error: null,
             }),
           }),
         }),
+      };
+    }
+
+    if (table === "properties") {
+      return {
+        select: () => ({
+          eq: () => ({
+            order: async () => ({ data: [], error: null }),
+            then: (resolve: (val: unknown) => void) => resolve({ data: [], error: null }),
+          }),
+        }),
+      };
+    }
+
+    if (table === "events") {
+      const eventBuilder = {
+        eq: () => eventBuilder,
+        order: () => eventBuilder,
+        limit: () => eventBuilder,
+        maybeSingle: async () => ({
+          data: events[0] ?? null,
+          error: null,
+        }),
+        then: (resolve: (val: unknown) => void) => {
+          return resolve({
+            data: events,
+            error: null,
+          });
+        },
+      };
+      return {
+        select: () => eventBuilder,
       };
     }
 

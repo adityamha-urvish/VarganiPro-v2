@@ -1,4 +1,5 @@
 import type { LocalReceipt } from "@/lib/offline/offline-db";
+import { formatReceiptCode } from "@/features/analytics/utils/receipt-formatter";
 
 export type PrintReceiptSessionInfo = {
   prefix: string;
@@ -13,7 +14,7 @@ export function printReceipt(
   receipt: LocalReceipt,
   session: PrintReceiptSessionInfo | null
 ): PrintReceiptResult {
-  if (!session) {
+  if (!session && !(receipt as unknown as { receiptPrefix?: string }).receiptPrefix) {
     return {
       success: false,
       error: "Collection session is not available.",
@@ -42,8 +43,12 @@ export function printReceipt(
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#039;");
 
-  const receiptCode =
-    `${session.prefix}${receipt.receiptNumber}`;
+  const effectivePrefix =
+    (receipt as unknown as { receiptPrefix?: string }).receiptPrefix || session?.prefix;
+  const receiptCode = formatReceiptCode({
+    receiptNumber: receipt.receiptNumber,
+    receiptPrefix: effectivePrefix,
+  });
 
   const donorName =
     escapeHtml(receipt.donorName);
@@ -76,7 +81,7 @@ export function printReceipt(
     );
 
   const bookNumber =
-    escapeHtml(session.bookNumber);
+    escapeHtml(session?.bookNumber || "");
 
   printWindow.document.open();
 

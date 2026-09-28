@@ -16,6 +16,7 @@ import {
   openWhatsAppShare,
   normalizeIndianMobile,
 } from "../utils/whatsapp-share";
+import { formatReceiptCode } from "../utils/receipt-formatter";
 import { useReceiptSearch } from "../hooks/use-receipt-search";
 import type { SearchReceiptItem } from "../services/receipt-search.service";
 import type { LocalReceipt } from "@/lib/offline/offline-db";
@@ -591,7 +592,10 @@ export function ReceiptSearchPanel({
             <div className="space-y-2.5">
               {filteredReceipts.map((r) => {
                 const isVoided = r.status === "voided" || Boolean(r.voided_at);
-                const receiptCode = `${r.receipt_prefix || receiptPrefix}${r.receipt_number}`;
+                const receiptCode = formatReceiptCode({
+                  receiptNumber: r.receipt_number,
+                  receiptPrefix: r.receipt_prefix || receiptPrefix,
+                });
                 const formattedDate = formatReceiptDateTime(r.created_at);
                 const isSelected = selectedReceipt?.id === r.id;
 
@@ -762,8 +766,11 @@ export function ReceiptSearchPanel({
             {/* Drawer Header */}
             <div className="px-5 py-3 border-b flex items-center justify-between bg-slate-50 shrink-0">
               <div className="flex items-center gap-2">
-                <span className="text-base font-black text-foreground">
-                  {selectedReceipt.receipt_prefix || receiptPrefix}{selectedReceipt.receipt_number}
+                <span className="text-base font-black font-mono text-foreground">
+                  {formatReceiptCode({
+                    receiptNumber: selectedReceipt.receipt_number,
+                    receiptPrefix: selectedReceipt.receipt_prefix || receiptPrefix,
+                  })}
                 </span>
                 {selectedReceipt.status === "voided" ? (
                   <span className="px-2 py-0.5 rounded text-[10px] font-black bg-red-100 text-red-800">
@@ -891,7 +898,10 @@ function ReceiptInspectorCard({
   onSelectReceiptFromContext,
 }: ReceiptInspectorCardProps) {
   const isVoided = receipt.status === "voided" || Boolean(receipt.voided_at);
-  const receiptCode = `${receipt.receipt_prefix || receiptPrefix}${receipt.receipt_number}`;
+  const receiptCode = formatReceiptCode({
+    receiptNumber: receipt.receipt_number,
+    receiptPrefix: receipt.receipt_prefix || receiptPrefix,
+  });
   const formattedDate = formatReceiptDateTime(receipt.created_at);
 
   const pavtiConfig: PavtiTemplateConfig = {
@@ -1229,7 +1239,7 @@ function ReceiptInspectorCard({
                         >
                           <div className="flex items-center justify-between">
                             <div className="font-bold text-foreground flex items-center gap-1.5">
-                              <span>{item.receipt_prefix || receiptPrefix}{item.receipt_number}</span>
+                              <span className="font-mono">{formatReceiptCode({ receiptNumber: item.receipt_number, receiptPrefix: item.receipt_prefix || receiptPrefix })}</span>
                               {isCurrent && (
                                 <span className="px-1.5 py-0.2 rounded text-[9px] bg-primary text-white font-bold">
                                   सध्याची
@@ -1305,7 +1315,7 @@ function ReceiptInspectorCard({
                         >
                           <div className="flex items-center justify-between">
                             <div className="font-bold text-foreground flex items-center gap-1.5">
-                              <span>{item.receipt_prefix || receiptPrefix}{item.receipt_number}</span>
+                              <span className="font-mono">{formatReceiptCode({ receiptNumber: item.receipt_number, receiptPrefix: item.receipt_prefix || receiptPrefix })}</span>
                               <span className="text-xs font-normal text-muted-foreground">
                                 ({item.donor_name})
                               </span>
@@ -1409,7 +1419,7 @@ function ReceiptInspectorCard({
                       >
                         <div className="flex items-center justify-between">
                           <div className="font-bold text-foreground flex items-center gap-1.5">
-                            <span>{item.receipt_prefix || receiptPrefix}{item.receipt_number}</span>
+                            <span className="font-mono">{formatReceiptCode({ receiptNumber: item.receipt_number, receiptPrefix: item.receipt_prefix || receiptPrefix })}</span>
                             <span className="text-xs font-normal text-muted-foreground">
                               — {item.donor_name}
                             </span>

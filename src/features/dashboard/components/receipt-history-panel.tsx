@@ -4,6 +4,7 @@ import {
   buildWhatsAppShareUrl,
   openWhatsAppShare,
 } from "@/features/analytics/utils/whatsapp-share";
+import { formatReceiptCode } from "@/features/analytics/utils/receipt-formatter";
 
 export function getStatusLabel(
   status: LocalReceipt["syncStatus"]
@@ -128,8 +129,11 @@ export function ReceiptHistoryPanel({
 
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-3">
-                    <span className="text-lg font-semibold">
-                      #{receipt.receiptNumber}
+                    <span className="text-lg font-semibold font-mono">
+                      {formatReceiptCode({
+                        receiptNumber: receipt.receiptNumber,
+                        receiptPrefix: (receipt as any).receiptPrefix || receiptPrefix,
+                      })}
                     </span>
 
                     <span
@@ -181,9 +185,11 @@ export function ReceiptHistoryPanel({
                     Receipt
                   </p>
 
-                  <p className="font-medium">
-                    {receiptPrefix}
-                    {receipt.receiptNumber}
+                  <p className="font-medium font-mono">
+                    {formatReceiptCode({
+                      receiptNumber: receipt.receiptNumber,
+                      receiptPrefix: (receipt as any).receiptPrefix || receiptPrefix,
+                    })}
                   </p>
                 </div>
 

@@ -75,11 +75,16 @@ export function useStartCollection({
     setStartSessionError(null);
 
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from("events")
         .select("id, name, code, start_date, end_date, upi_id, upi_name")
-        .eq("is_active", true)
-        .order("start_date", { ascending: true });
+        .eq("is_active", true);
+
+      if (organizationId) {
+        query = query.eq("organization_id", organizationId);
+      }
+
+      const { data, error } = await query.order("created_at", { ascending: false });
 
       if (error) throw new Error(error.message);
 

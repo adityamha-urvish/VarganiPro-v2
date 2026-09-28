@@ -7,6 +7,7 @@ import {
   formatWhatsAppReceiptMessage,
   openWhatsAppShare,
 } from "@/features/analytics/utils/whatsapp-share";
+import { formatReceiptCode } from "@/features/analytics/utils/receipt-formatter";
 import { loadPavtiConfig } from "@/features/pavti/services/pavti-config.service";
 import {
   renderPavtiToFile,
@@ -17,12 +18,18 @@ import {
 
 export type LastCreatedReceiptCardProps = {
   receipt: LocalReceipt | null;
+  receiptPrefix?: string;
+  mandalName?: string | null;
+  eventName?: string | null;
   onViewReceipt: (receipt: LocalReceipt) => void;
   onPrintReceipt: (receipt: LocalReceipt) => void;
 };
 
 export function LastCreatedReceiptCard({
   receipt,
+  receiptPrefix,
+  mandalName,
+  eventName,
   onViewReceipt,
   onPrintReceipt,
 }: LastCreatedReceiptCardProps) {
@@ -50,15 +57,19 @@ export function LastCreatedReceiptCard({
     setIsGenerating(true);
     setGenerateError(null);
 
+    const effectivePrefix = (receipt as unknown as { receiptPrefix?: string }).receiptPrefix || receiptPrefix;
     const config = loadPavtiConfig(
       receipt.organizationId,
-      (receipt as unknown as { mandalName?: string }).mandalName,
-      (receipt as unknown as { eventName?: string }).eventName
+      mandalName || (receipt as unknown as { mandalName?: string }).mandalName,
+      eventName || (receipt as unknown as { eventName?: string }).eventName
     );
 
-    const filename = `Vargani-Pavti-${(receipt as unknown as { receiptPrefix?: string }).receiptPrefix || "VP-"}${receipt.receiptNumber}.jpg`;
+    const filename = `Vargani-Pavti-${effectivePrefix ? `${effectivePrefix}${receipt.receiptNumber}` : `No-${receipt.receiptNumber}`}.jpg`;
 
-    renderPavtiToFile(config, receipt as unknown as Parameters<typeof renderPavtiToFile>[1], filename)
+    renderPavtiToFile(config, {
+      ...receipt,
+      receiptPrefix: effectivePrefix,
+    } as unknown as Parameters<typeof renderPavtiToFile>[1], filename)
       .then((file) => {
         if (!isCancelled) {
           setCachedPavti({ id: currentId, file });
@@ -76,11 +87,17 @@ export function LastCreatedReceiptCard({
     return () => {
       isCancelled = true;
     };
-  }, [receipt?.clientReceiptId, receipt?.receiptNumber]);
+  }, [receipt?.clientReceiptId, receipt?.receiptNumber, receiptPrefix, mandalName, eventName]);
 
   if (!receipt) {
     return null;
   }
+
+  const effectivePrefix = (receipt as unknown as { receiptPrefix?: string }).receiptPrefix || receiptPrefix;
+  const formattedCode = formatReceiptCode({
+    receiptNumber: receipt.receiptNumber,
+    receiptPrefix: effectivePrefix,
+  });
 
   const isVoided = (receipt as unknown as { status?: string }).status === "voided" || Boolean((receipt as unknown as { voidedAt?: string }).voidedAt);
   const isFileReady = cachedPavti?.id === receipt.clientReceiptId;
@@ -103,7 +120,9 @@ export function LastCreatedReceiptCard({
 
     const caption = formatWhatsAppReceiptMessage({
       ...receipt,
-      receiptPrefix: (receipt as unknown as { receiptPrefix?: string }).receiptPrefix || "VP-",
+      receiptPrefix: effectivePrefix,
+      mandalName: mandalName || (receipt as unknown as { mandalName?: string }).mandalName,
+      eventName: eventName || (receipt as unknown as { eventName?: string }).eventName,
     });
 
     const result = await sharePavtiFile(cachedPavti.file, caption);
@@ -125,7 +144,9 @@ export function LastCreatedReceiptCard({
     if (!receipt) return;
     const shareDetails = buildWhatsAppShareUrl({
       ...receipt,
-      receiptPrefix: (receipt as unknown as { receiptPrefix?: string }).receiptPrefix || "VP-",
+      receiptPrefix: effectivePrefix,
+      mandalName: mandalName || (receipt as unknown as { mandalName?: string }).mandalName,
+      eventName: eventName || (receipt as unknown as { eventName?: string }).eventName,
     });
     openWhatsAppShare(shareDetails.url);
   }
@@ -139,8 +160,8 @@ export function LastCreatedReceiptCard({
               Receipt created
             </p>
 
-            <p className="mt-1 text-2xl font-bold text-green-800">
-              #{receipt.receiptNumber}
+            <p className="mt-1 text-2xl font-bold font-mono text-green-800">
+              {formattedCode}
             </p>
 
             <p className="mt-1 text-sm text-green-700">

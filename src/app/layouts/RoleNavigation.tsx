@@ -154,7 +154,7 @@ export function RoleNavigation({
       -------------------------------------------------------------- */}
       <nav
         aria-label="Bottom Navigation"
-        className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#FAF5ED]/95 backdrop-blur-md border-t border-amber-900/20 px-1 pt-1 pb-[max(0.6rem,env(safe-area-inset-bottom,0.6rem))] shadow-[0_-4px_16px_rgba(0,0,0,0.06)]"
+        className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#0B2530] border-t border-slate-700/60 px-1 pt-1.5 pb-[max(0.75rem,env(safe-area-inset-bottom,0.75rem))] shadow-[0_-4px_20px_rgba(0,0,0,0.25)]"
       >
         <div className="grid grid-cols-5 gap-0.5 max-w-md mx-auto">
           {mobilePrimaryTabs.map((t) => {
@@ -167,8 +167,8 @@ export function RoleNavigation({
                 onClick={() => handleMobileNavClick(t.id)}
                 className={`min-h-[48px] py-1 px-0.5 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer ${
                   isActive
-                    ? "text-[#800020] font-black bg-amber-200/60 shadow-2xs"
-                    : "text-slate-600 hover:text-slate-900 font-semibold"
+                    ? "text-amber-300 font-black bg-white/10 shadow-xs"
+                    : "text-slate-300 hover:text-white font-medium"
                 }`}
               >
                 <div className="relative">

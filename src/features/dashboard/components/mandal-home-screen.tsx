@@ -32,11 +32,11 @@ export interface MandalHomeScreenProps {
 
 export function MandalHomeScreen({
   userName = "Volunteer",
-  mandalName = "श्री गणेश मित्र मंडळ",
-  eventName = "Ganesh Utsav 2026",
-  eventCode = "GU-26",
-  eventDates = "10 Sep – 20 Sep 2026",
-  eventProgressPct = 68,
+  mandalName = "उत्सव मंडळ",
+  eventName = "उत्सव २०२६",
+  eventCode = "UTSAV",
+  eventDates = "",
+  eventProgressPct = 0,
   sessionBookNumber,
   sessionReceiptNumber,
   sessionStatus,

@@ -6,6 +6,7 @@ import {
   formatWhatsAppReceiptMessage,
   openWhatsAppShare,
 } from "@/features/analytics/utils/whatsapp-share";
+import { formatReceiptCode } from "@/features/analytics/utils/receipt-formatter";
 import { loadPavtiConfig } from "@/features/pavti/services/pavti-config.service";
 import {
   renderPavtiToFile,
@@ -16,6 +17,9 @@ import {
 
 export interface ReceiptCreationConfirmationProps {
   receipt: LocalReceipt | null;
+  receiptPrefix?: string | null;
+  mandalName?: string | null;
+  eventName?: string | null;
   buildingName?: string | null;
   unitNumber?: string | null;
   nextProperty?: CachedPropertyProgress | null;
@@ -26,6 +30,9 @@ export interface ReceiptCreationConfirmationProps {
 
 export function ReceiptCreationConfirmation({
   receipt,
+  receiptPrefix,
+  mandalName,
+  eventName,
   buildingName,
   unitNumber,
   nextProperty,
@@ -51,16 +58,19 @@ export function ReceiptCreationConfirmation({
     let isCancelled = false;
     setIsGenerating(true);
 
+    const effectivePrefix = (receipt as unknown as { receiptPrefix?: string }).receiptPrefix || receiptPrefix;
     const config = loadPavtiConfig(
       receipt.organizationId,
-      (receipt as unknown as { mandalName?: string }).mandalName,
-      (receipt as unknown as { eventName?: string }).eventName
+      mandalName || (receipt as unknown as { mandalName?: string }).mandalName,
+      eventName || (receipt as unknown as { eventName?: string }).eventName
     );
 
-    const prefix = (receipt as unknown as { receiptPrefix?: string }).receiptPrefix || "VP-";
-    const filename = `Vargani-Pavti-${prefix}${receipt.receiptNumber}.jpg`;
+    const filename = `Vargani-Pavti-${effectivePrefix ? `${effectivePrefix}${receipt.receiptNumber}` : `No-${receipt.receiptNumber}`}.jpg`;
 
-    renderPavtiToFile(config, receipt as unknown as Parameters<typeof renderPavtiToFile>[1], filename)
+    renderPavtiToFile(config, {
+      ...receipt,
+      receiptPrefix: effectivePrefix,
+    } as unknown as Parameters<typeof renderPavtiToFile>[1], filename)
       .then((file) => {
         if (!isCancelled) {
           setCachedPavti({ id: currentId, file });
@@ -77,12 +87,15 @@ export function ReceiptCreationConfirmation({
     return () => {
       isCancelled = true;
     };
-  }, [receipt?.clientReceiptId, receipt?.receiptNumber]);
+  }, [receipt?.clientReceiptId, receipt?.receiptNumber, receiptPrefix, mandalName, eventName]);
 
   if (!receipt) return null;
 
-  const prefix = (receipt as unknown as { receiptPrefix?: string }).receiptPrefix || "VP-";
-  const formattedNumber = `${prefix}${receipt.receiptNumber}`;
+  const effectivePrefix = (receipt as unknown as { receiptPrefix?: string }).receiptPrefix || receiptPrefix;
+  const formattedNumber = formatReceiptCode({
+    receiptNumber: receipt.receiptNumber,
+    receiptPrefix: effectivePrefix,
+  });
   const isFileReady = cachedPavti?.id === receipt.clientReceiptId;
 
   // Sync state badge
@@ -99,7 +112,9 @@ export function ReceiptCreationConfirmation({
     if (isFileReady && cachedPavti && canSharePavtiFile(cachedPavti.file)) {
       const caption = formatWhatsAppReceiptMessage({
         ...receipt,
-        receiptPrefix: prefix,
+        receiptPrefix: effectivePrefix,
+        mandalName: mandalName || (receipt as unknown as { mandalName?: string }).mandalName,
+        eventName: eventName || (receipt as unknown as { eventName?: string }).eventName,
         buildingName: buildingName || undefined,
         unitNumber: unitNumber || undefined,
       });
@@ -118,7 +133,9 @@ export function ReceiptCreationConfirmation({
     // Direct WhatsApp web / universal URL fallback
     const shareDetails = buildWhatsAppShareUrl({
       ...receipt,
-      receiptPrefix: prefix,
+      receiptPrefix: effectivePrefix,
+      mandalName: mandalName || (receipt as unknown as { mandalName?: string }).mandalName,
+      eventName: eventName || (receipt as unknown as { eventName?: string }).eventName,
       buildingName: buildingName || undefined,
       unitNumber: unitNumber || undefined,
     });
@@ -137,7 +154,9 @@ export function ReceiptCreationConfirmation({
     if (!receipt) return;
     const shareDetails = buildWhatsAppShareUrl({
       ...receipt,
-      receiptPrefix: prefix,
+      receiptPrefix: effectivePrefix,
+      mandalName: mandalName || (receipt as unknown as { mandalName?: string }).mandalName,
+      eventName: eventName || (receipt as unknown as { eventName?: string }).eventName,
       buildingName: buildingName || undefined,
       unitNumber: unitNumber || undefined,
     });

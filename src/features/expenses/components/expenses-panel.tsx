@@ -354,7 +354,7 @@ export function ExpensesPanel({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-foreground">
                     रक्कम (₹) / Amount <span className="text-rose-500">*</span>
@@ -368,7 +368,7 @@ export function ExpensesPanel({
                     data-testid="input-expense-amount"
                     value={addAmount}
                     onChange={(e) => setAddAmount(e.target.value)}
-                    className="text-xs h-9 font-mono font-bold"
+                    className="text-xs h-9 font-mono font-bold w-full min-w-0"
                   />
                 </div>
 
@@ -382,7 +382,7 @@ export function ExpensesPanel({
                     data-testid="input-expense-date"
                     value={addDate}
                     onChange={(e) => setAddDate(e.target.value)}
-                    className="text-xs h-9"
+                    className="text-xs h-9 w-full min-w-0"
                   />
                 </div>
               </div>
@@ -458,7 +458,7 @@ export function ExpensesPanel({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-foreground">
                     रक्कम (₹) / Amount <span className="text-rose-500">*</span>
@@ -471,7 +471,7 @@ export function ExpensesPanel({
                     data-testid="input-edit-expense-amount"
                     value={editAmount}
                     onChange={(e) => setEditAmount(e.target.value)}
-                    className="text-xs h-9 font-mono font-bold"
+                    className="text-xs h-9 font-mono font-bold w-full min-w-0"
                   />
                 </div>
 
@@ -485,7 +485,7 @@ export function ExpensesPanel({
                     data-testid="input-edit-expense-date"
                     value={editDate}
                     onChange={(e) => setEditDate(e.target.value)}
-                    className="text-xs h-9"
+                    className="text-xs h-9 w-full min-w-0"
                   />
                 </div>
               </div>

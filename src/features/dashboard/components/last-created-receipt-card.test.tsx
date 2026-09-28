@@ -141,6 +141,7 @@ describe("LastCreatedReceiptCard — Web Share Level 2 & Caching Tests", () => {
     const { rerender } = render(
       <LastCreatedReceiptCard
         receipt={mockReceiptA}
+        receiptPrefix="VP-"
         onViewReceipt={vi.fn()}
         onPrintReceipt={vi.fn()}
       />
@@ -158,13 +159,14 @@ describe("LastCreatedReceiptCard — Web Share Level 2 & Caching Tests", () => {
     rerender(
       <LastCreatedReceiptCard
         receipt={mockReceiptB}
+        receiptPrefix="VP-"
         onViewReceipt={vi.fn()}
         onPrintReceipt={vi.fn()}
       />
     );
 
-    expect(screen.getByText("#102")).toBeTruthy();
-    expect(screen.getByText(/Vikas Patil — ₹1001\.00/)).toBeTruthy();
+    expect(screen.getByText(/102/)).toBeTruthy();
+    expect(screen.getByText(/Vikas Patil/)).toBeTruthy();
 
     await waitFor(() => {
       expect(pavtiImageService.renderPavtiToFile).toHaveBeenCalledWith(

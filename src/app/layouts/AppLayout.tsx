@@ -31,7 +31,7 @@ export function AppLayout({
   isAdmin = false,
   pendingSyncCount = 0,
   userName,
-  eventName = "Ganesh Utsav 2026",
+  eventName = "",
 }: AppLayoutProps) {
   const navigate = useNavigate();
   const [showPendingWarning, setShowPendingWarning] = useState(false);
@@ -40,15 +40,34 @@ export function AppLayout({
   const [dynamicEventName, setDynamicEventName] = useState(eventName);
 
   useEffect(() => {
-    setDynamicEventName(eventName);
+    if (eventName) {
+      setDynamicEventName(eventName);
+    }
   }, [eventName]);
 
   useEffect(() => {
     if (typeof supabase?.from === "function") {
-      void supabase
+      let orgId: string | null = null;
+      try {
+        const stored = localStorage.getItem("vp_user");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          orgId = parsed.organization_id || parsed.organizationId || null;
+        }
+      } catch {
+        // ignore
+      }
+
+      let query = supabase
         .from("events")
         .select("name")
-        .eq("is_active", true)
+        .eq("is_active", true);
+
+      if (orgId) {
+        query = query.eq("organization_id", orgId);
+      }
+
+      void query
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle()

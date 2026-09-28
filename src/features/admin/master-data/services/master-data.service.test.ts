@@ -126,4 +126,19 @@ describe("Phase 9-3B: Master Data Service", () => {
     expect(res.propertyId).toBe("shop-q1");
     expect(res.shopName).toBe("Om Sai Medical");
   });
+
+  it("setActiveEvent calls set_active_event RPC with target event ID", async () => {
+    supabaseRpcMock.mockResolvedValueOnce({
+      data: { success: true, active_event_id: "event-navratri-1", organization_id: "org-1" },
+      error: null,
+    });
+
+    const res = await (await import("./master-data.service")).setActiveEvent("event-navratri-1");
+
+    expect(supabaseRpcMock).toHaveBeenCalledWith("set_active_event", {
+      p_event_id: "event-navratri-1",
+    });
+    expect(res.success).toBe(true);
+    expect(res.activeEventId).toBe("event-navratri-1");
+  });
 });

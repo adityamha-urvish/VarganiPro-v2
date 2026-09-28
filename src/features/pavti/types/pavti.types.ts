@@ -1,4 +1,4 @@
-export type FestivalType = "ganpati" | "navratri" | "other";
+export type FestivalType = "ganesh" | "ganpati" | "navratri" | "other";
 
 export interface PavtiTemplateConfig {
   festivalType: FestivalType;

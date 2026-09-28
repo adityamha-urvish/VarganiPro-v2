@@ -1,11 +1,17 @@
 /**
  * WhatsApp Receipt Sharing Utility
- * Phase 9-4 Step 4B: Canonical pure utility for WhatsApp receipt sharing
+ * Canonical pure utility for WhatsApp receipt sharing
  */
+
+import {
+  formatReceiptCode,
+  isReceiptPrefixValid,
+  getFestivalGreetings,
+} from './receipt-formatter';
 
 export interface WhatsAppReceiptInput {
   receiptNumber: number;
-  receiptPrefix?: string;
+  receiptPrefix?: string | null;
   amount: number;
   paymentMode: string;
   paymentReference?: string | null;
@@ -74,9 +80,9 @@ export function normalizeIndianMobile(raw: string | null | undefined): string | 
 /**
  * Evaluates whether a receipt is eligible for WhatsApp sharing.
  * A receipt is shareable ONLY when:
- * 1. It is not voided
- * 2. It is not cancelled
- * 3. It is server-authoritative / synced (syncStatus === 'synced' OR server-fetched record with valid status)
+ * 1. It is not voided or cancelled
+ * 2. It has a valid physical book prefix (never share synthetic or unverified numbers)
+ * 3. It is server-authoritative or stored in local offline queue
  */
 export function checkShareEligibility(receipt: WhatsAppReceiptInput | null | undefined): ShareEligibilityResult {
   if (!receipt) {
@@ -102,6 +108,15 @@ export function checkShareEligibility(receipt: WhatsAppReceiptInput | null | und
       isShareable: false,
       reason: 'रद्द केलेली पावती शेअर करता येत नाही (Cancelled receipt cannot be shared)',
       code: 'CANCELLED',
+    };
+  }
+
+  // Check physical book prefix validity (block if prefix cannot be resolved)
+  if (!isReceiptPrefixValid(receipt.receiptPrefix)) {
+    return {
+      isShareable: false,
+      reason: 'पावती क्रमांक उपलब्ध नाही (Receipt book prefix unavailable)',
+      code: 'UNSYNCED',
     };
   }
 
@@ -190,12 +205,15 @@ export function formatReceiptDateTime(dateStr: string): string {
  * Constructs the concise Marathi-first bilingual WhatsApp message.
  */
 export function formatWhatsAppReceiptMessage(input: WhatsAppReceiptInput): string {
-  const prefix = input.receiptPrefix || 'VP-';
-  const receiptCode = `${prefix}${input.receiptNumber}`;
-  const mandalOrEvent = input.mandalName || input.eventName || 'श्री गणेश उत्सव २०२६';
+  const receiptCode = formatReceiptCode({
+    receiptNumber: input.receiptNumber,
+    receiptPrefix: input.receiptPrefix,
+  });
+  const mandalOrEvent = input.mandalName || input.eventName || 'उत्सव वर्गणी';
   const modeLabel = formatPaymentModeLabel(input.paymentMode);
   const formattedDate = formatReceiptDateTime(input.createdAt);
   const amountStr = `₹${input.amount.toFixed(2)}`;
+  const greetings = getFestivalGreetings(input.eventName, input.mandalName);
 
   const lines: string[] = [];
 
@@ -234,8 +252,7 @@ export function formatWhatsAppReceiptMessage(input: WhatsAppReceiptInput): strin
   }
 
   lines.push('');
-  lines.push('आपल्या सहकार्याबद्दल धन्यवाद!');
-  lines.push('गणपती बाप्पा मोरया! 🌺');
+  lines.push(greetings.closingGreeting);
 
   return lines.join('\n');
 }

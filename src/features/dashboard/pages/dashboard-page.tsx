@@ -161,9 +161,9 @@ export function DashboardPage() {
     upiId?: string;
     upiName?: string;
   }>({
-    mandalName: "श्री गणेश मित्र मंडळ",
-    eventName: "Ganesh Utsav 2026",
-    eventCode: "GU-26",
+    mandalName: "",
+    eventName: "",
+    eventCode: "",
   });
 
   useEffect(() => {
@@ -196,15 +196,15 @@ export function DashboardPage() {
 
         if (isMounted) {
           setMandalDetails({
-            mandalName: orgData?.name || "श्री गणेश मित्र मंडळ",
+            mandalName: orgData?.name || "",
             eventName:
               eventData?.name ||
               availableEvents.find((e) => e.id === effectiveEventId)?.name ||
-              "Ganesh Utsav 2026",
+              "",
             eventCode:
               eventData?.code ||
               availableEvents.find((e) => e.id === effectiveEventId)?.code ||
-              "GU-26",
+              "",
             upiId:
               eventData?.upi_id ||
               (availableEvents.find((e) => e.id === effectiveEventId) as any)?.upi_id ||
@@ -758,6 +758,9 @@ export function DashboardPage() {
 
                           <LastCreatedReceiptCard
                             receipt={createdReceipt}
+                            receiptPrefix={session?.prefix}
+                            mandalName={mandalDetails.mandalName}
+                            eventName={mandalDetails.eventName}
                             onViewReceipt={(receipt) => setReceiptToView(receipt)}
                             onPrintReceipt={(receipt) => handlePrintReceipt(receipt)}
                           />
@@ -798,6 +801,9 @@ export function DashboardPage() {
 
                       <LastCreatedReceiptCard
                         receipt={createdReceipt}
+                        receiptPrefix={session?.prefix}
+                        mandalName={mandalDetails.mandalName}
+                        eventName={mandalDetails.eventName}
                         onViewReceipt={(receipt) => setReceiptToView(receipt)}
                         onPrintReceipt={(receipt) => handlePrintReceipt(receipt)}
                       />
@@ -1015,66 +1021,117 @@ export function DashboardPage() {
                     />
                   )}
 
-                  <ReceiptCreationForm
-                    propertyId={propertyId}
-                    properties={properties}
-                    buildings={buildings}
-                    selectedBuildingId={selectedBuilding?.buildingId || null}
-                    onBuildingIdChange={(bId) => {
-                      if (!bId) {
-                        setSelectedBuilding(null);
-                        setPropertyId(null);
-                      } else {
-                        const found = buildings.find((b) => b.buildingId === bId);
-                        if (found) {
-                          void selectBuilding(found);
-                        }
-                      }
-                    }}
-                    onAddBuilding={async (name, wing) => {
-                      const res = await addBuildingDirect(name, wing);
-                      return res?.buildingId;
-                    }}
-                    onAddProperty={async (input) => {
-                      if (!selectedBuilding) return;
-                      const p = await addPropertyDirect(input);
-                      return p?.propertyId;
-                    }}
-                    donorName={donorName}
-                    donorMobile={donorMobile}
-                    amount={amount}
-                    paymentMode={paymentMode}
-                    paymentReference={paymentReference}
-                    notes={notes}
-                    creating={creating}
-                    createError={createError}
-                    sessionStatus={session.sessionStatus}
-                    currentReceiptNumber={session.currentNumber}
-                    startNumber={session.startNumber}
-                    endNumber={session.endNumber}
-                    onNavigateToCloseSession={() => {
-                      setSelectedBuilding(null);
-                    }}
-                    onPropertyIdChange={setPropertyId}
-                    onDonorNameChange={setDonorName}
-                    onDonorMobileChange={setDonorMobile}
-                    onAmountChange={setAmount}
-                    onPaymentModeChange={setPaymentMode}
-                    onPaymentReferenceChange={setPaymentReference}
-                    onNotesChange={setNotes}
-                    onSubmit={handleCreateReceipt}
-                  />
+                  {selectedBuilding ? (
+                    <div className="space-y-4 animate-in fade-in">
+                      <div className="flex items-center justify-between pb-2 border-b">
+                        <button
+                          type="button"
+                          onClick={handleBackFromBuilding}
+                          className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-slate-950 bg-white border border-slate-200/80 px-3 py-1.5 rounded-xl shadow-2xs cursor-pointer"
+                        >
+                          <span>←</span>
+                          <span>इमारतींची यादी (All Buildings)</span>
+                        </button>
+                        <span className="text-xs font-black text-slate-900 truncate max-w-[200px]">
+                          🏢 {selectedBuilding.buildingName}
+                        </span>
+                      </div>
 
-                  <ReceiptHistoryPanel
-                    receipts={receipts}
-                    receiptPrefix={session.prefix}
-                    sessionStatus={session.sessionStatus}
-                    loading={historyLoading}
-                    onRefresh={() => void loadReceiptHistory(session.receiptBookId)}
-                    onSyncNext={() => void handleSyncNextReceipt()}
-                    onViewReceipt={(receipt) => setReceiptToView(receipt)}
-                    onPrintReceipt={(receipt) => handlePrintReceipt(receipt)}
-                  />
+                      <BuildingFlatGrid
+                        building={selectedBuilding}
+                        properties={properties}
+                        loading={loadingProperties}
+                        onBack={handleBackFromBuilding}
+                        onSelectProperty={(p) => handleSelectProperty(p)}
+                        onStartNextFlat={startNextFlat}
+                        onAddProperty={addPropertyDirect}
+                      />
+                    </div>
+                  ) : (
+                    <>
+                      <ContinueCollectionCard
+                        buildings={buildings}
+                        loading={loadingBuildings}
+                        hasActiveSession={Boolean(session && session.sessionStatus === "open")}
+                        onSelectBuilding={(b) => handleSelectBuilding(b)}
+                        onRefresh={() => void loadBuildings()}
+                        onAddBuilding={addBuildingDirect}
+                        onStartSession={() => {
+                          setVolunteerSubView("home");
+                        }}
+                      />
+
+                      <ReceiptCreationForm
+                        propertyId={propertyId}
+                        properties={properties}
+                        buildings={buildings}
+                        selectedBuildingId={null}
+                        onBuildingIdChange={(bId) => {
+                          if (!bId) {
+                            setSelectedBuilding(null);
+                            setPropertyId(null);
+                          } else {
+                            const found = buildings.find((b) => b.buildingId === bId);
+                            if (found) {
+                              void selectBuilding(found);
+                            }
+                          }
+                        }}
+                        onAddBuilding={async (name, wing) => {
+                          const res = await addBuildingDirect(name, wing);
+                          return res?.buildingId;
+                        }}
+                        onAddProperty={async (input) => {
+                          if (!selectedBuilding) return;
+                          const p = await addPropertyDirect(input);
+                          return p?.propertyId;
+                        }}
+                        donorName={donorName}
+                        donorMobile={donorMobile}
+                        amount={amount}
+                        paymentMode={paymentMode}
+                        paymentReference={paymentReference}
+                        notes={notes}
+                        creating={creating}
+                        createError={createError}
+                        sessionStatus={session.sessionStatus}
+                        currentReceiptNumber={session.currentNumber}
+                        startNumber={session.startNumber}
+                        endNumber={session.endNumber}
+                        onNavigateToCloseSession={() => {
+                          setSelectedBuilding(null);
+                        }}
+                        onPropertyIdChange={setPropertyId}
+                        onDonorNameChange={setDonorName}
+                        onDonorMobileChange={setDonorMobile}
+                        onAmountChange={setAmount}
+                        onPaymentModeChange={setPaymentMode}
+                        onPaymentReferenceChange={setPaymentReference}
+                        onNotesChange={setNotes}
+                        onSubmit={handleCreateReceipt}
+                      />
+
+                      <LastCreatedReceiptCard
+                        receipt={createdReceipt}
+                        receiptPrefix={session.prefix}
+                        mandalName={mandalDetails.mandalName}
+                        eventName={mandalDetails.eventName}
+                        onViewReceipt={(receipt) => setReceiptToView(receipt)}
+                        onPrintReceipt={(receipt) => handlePrintReceipt(receipt)}
+                      />
+
+                      <ReceiptHistoryPanel
+                        receipts={receipts}
+                        receiptPrefix={session.prefix}
+                        sessionStatus={session.sessionStatus}
+                        loading={historyLoading}
+                        onRefresh={() => void loadReceiptHistory(session.receiptBookId)}
+                        onSyncNext={() => void handleSyncNextReceipt()}
+                        onViewReceipt={(receipt) => setReceiptToView(receipt)}
+                        onPrintReceipt={(receipt) => handlePrintReceipt(receipt)}
+                      />
+                    </>
+                  )}
                 </>
               )}
             </>
@@ -1509,6 +1566,9 @@ export function DashboardPage() {
           buildingName={activeConfirmationReceipt.buildingName}
           unitNumber={activeConfirmationReceipt.unitNumber}
           nextProperty={activeConfirmationReceipt.nextProperty}
+          receiptPrefix={session?.prefix}
+          mandalName={mandalDetails.mandalName}
+          eventName={mandalDetails.eventName}
           onClose={() => setActiveConfirmationReceipt(null)}
           onViewReceipt={(receipt) => setReceiptToView(receipt)}
           onNextFlat={(prop) => {
