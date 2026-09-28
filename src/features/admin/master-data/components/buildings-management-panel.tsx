@@ -12,25 +12,25 @@ import {
   type BuildingRecord,
   type PropertyRecord,
 } from "../services/master-data.service";
-import { ReceiptBooksManagementPanel } from "./receipt-books-management-panel";
 
 export interface BuildingsManagementPanelProps {
   organizationId: string;
   eventId?: string | null;
-  initialSubTab?: "buildings" | "shops" | "books";
+  initialSubTab?: "buildings" | "shops";
   onStartCollection?: (building?: BuildingRecord | null, flat?: PropertyRecord) => void;
   onStartGeneralReceipt?: () => void;
-
 }
 
 export function BuildingsManagementPanel({
   organizationId,
-  eventId,
+  eventId: _eventId,
   initialSubTab = "buildings",
   onStartCollection,
   onStartGeneralReceipt,
 }: BuildingsManagementPanelProps) {
-  const [subTab, setSubTab] = useState<"buildings" | "shops" | "books">(initialSubTab);
+  const [subTab, setSubTab] = useState<"buildings" | "shops">(
+    initialSubTab === "shops" ? "shops" : "buildings"
+  );
 
   // Buildings & Flats state
   const [buildings, setBuildings] = useState<BuildingRecord[]>([]);
@@ -286,21 +286,6 @@ export function BuildingsManagementPanel({
             }`}
           >
             🏪 Commercial Shops (दुकाने)
-          </button>
-          <button
-            type="button"
-            data-testid="subtab-books"
-            onClick={() => {
-              setSubTab("books");
-              setSelectedBuilding(null);
-            }}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              subTab === "books"
-                ? "bg-slate-900 text-white shadow-xs"
-                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-            }`}
-          >
-            📚 Receipt Books (पावती पुस्तके)
           </button>
         </div>
 
@@ -687,18 +672,6 @@ export function BuildingsManagementPanel({
             </div>
 
           )}
-        </div>
-      )}
-
-      {/* -------------------------------------------------------------
-          4. RECEIPT BOOKS VIEW (SECRETARY/ADMIN)
-      -------------------------------------------------------------- */}
-      {subTab === "books" && (
-        <div className="animate-in fade-in" data-testid="receipt-books-view">
-          <ReceiptBooksManagementPanel
-            organizationId={organizationId}
-            eventId={eventId}
-          />
         </div>
       )}
 

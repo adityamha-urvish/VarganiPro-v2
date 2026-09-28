@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { supabase } from "@/supabase/client";
 
 import {
   loadCurrentCollectionSession,
@@ -25,6 +26,7 @@ import { BuildingsCollectionScreen } from "../components/buildings-collection-sc
 import { RoleNavigation, type NavigationTab } from "@/app/layouts/RoleNavigation";
 import { VolunteerManagementPanel } from "@/features/admin/volunteers/components/volunteer-management-panel";
 import { BuildingsManagementPanel } from "@/features/admin/master-data/components/buildings-management-panel";
+import { ReceiptBooksManagementPanel } from "@/features/admin/master-data/components/receipt-books-management-panel";
 import { createBuilding } from "@/features/admin/master-data/services/master-data.service";
 import { VolunteerFinancialLedger } from "@/features/analytics/components/volunteer-financial-ledger";
 import { ReceiptSearchPanel } from "@/features/analytics/components/receipt-search-panel";
@@ -151,6 +153,78 @@ export function DashboardPage() {
 
   const effectiveEventId =
     session?.eventId || selectedEventId || availableEvents[0]?.id || null;
+
+  const [mandalDetails, setMandalDetails] = useState<{
+    mandalName: string;
+    eventName: string;
+    eventCode: string;
+    upiId?: string;
+    upiName?: string;
+  }>({
+    mandalName: "श्री गणेश मित्र मंडळ",
+    eventName: "Ganesh Utsav 2026",
+    eventCode: "GU-26",
+  });
+
+  useEffect(() => {
+    if (!organizationId) return;
+
+    let isMounted = true;
+    async function loadMandalAndEventInfo() {
+      try {
+        const [{ data: orgData }, { data: eventData }] = await Promise.all([
+          supabase
+            .from("organizations")
+            .select("name")
+            .eq("id", organizationId)
+            .maybeSingle(),
+          effectiveEventId
+            ? supabase
+                .from("events")
+                .select("name, code, upi_id, upi_name")
+                .eq("id", effectiveEventId)
+                .maybeSingle()
+            : supabase
+                .from("events")
+                .select("name, code, upi_id, upi_name")
+                .eq("organization_id", organizationId)
+                .eq("is_active", true)
+                .order("created_at", { ascending: false })
+                .limit(1)
+                .maybeSingle(),
+        ]);
+
+        if (isMounted) {
+          setMandalDetails({
+            mandalName: orgData?.name || "श्री गणेश मित्र मंडळ",
+            eventName:
+              eventData?.name ||
+              availableEvents.find((e) => e.id === effectiveEventId)?.name ||
+              "Ganesh Utsav 2026",
+            eventCode:
+              eventData?.code ||
+              availableEvents.find((e) => e.id === effectiveEventId)?.code ||
+              "GU-26",
+            upiId:
+              eventData?.upi_id ||
+              (availableEvents.find((e) => e.id === effectiveEventId) as any)?.upi_id ||
+              undefined,
+            upiName:
+              eventData?.upi_name ||
+              (availableEvents.find((e) => e.id === effectiveEventId) as any)?.upi_name ||
+              undefined,
+          });
+        }
+      } catch (err) {
+        console.warn("Could not load mandal/event details:", err);
+      }
+    }
+
+    void loadMandalAndEventInfo();
+    return () => {
+      isMounted = false;
+    };
+  }, [organizationId, effectiveEventId, availableEvents]);
 
   const {
     propertyId,
@@ -459,9 +533,9 @@ export function DashboardPage() {
             <>
               <MandalHomeScreen
                 userName={isAdmin ? "Mandal Secretary" : "Volunteer"}
-                mandalName="श्री गणेश मित्र मंडळ"
-                eventName={availableEvents.find((e) => e.id === effectiveEventId)?.name || "Ganesh Utsav 2026"}
-                eventCode={availableEvents.find((e) => e.id === effectiveEventId)?.code || "GU-26"}
+                mandalName={mandalDetails.mandalName}
+                eventName={mandalDetails.eventName}
+                eventCode={mandalDetails.eventCode}
                 eventDates="10 Sep – 20 Sep 2026"
                 eventProgressPct={secretaryMetrics?.property_progress?.completion_percentage ?? 68}
                 sessionBookNumber={session?.bookNumber}
@@ -495,7 +569,7 @@ export function DashboardPage() {
                 onNavigateToHistory={() => handleTabChange("history")}
                 onNavigateToHandover={() => handleTabChange("handovers")}
                 onNavigateToBooks={() => {
-                  nav.setTab("masterData");
+                  handleTabChange("receiptBooks");
                 }}
                 onNavigateToSessionDetails={() => {
                   nav.openCollectMode();
@@ -1139,6 +1213,24 @@ export function DashboardPage() {
       )}
 
       {/* -------------------------------------------------------------
+          TAB: RECEIPT BOOKS (SECRETARY/ADMIN)
+      -------------------------------------------------------------- */}
+      {activeTab === "receiptBooks" && (
+        <div className="animate-in fade-in" data-testid="receipt-books-workspace">
+          {organizationId ? (
+            <ReceiptBooksManagementPanel
+              organizationId={organizationId}
+              eventId={effectiveEventId}
+            />
+          ) : (
+            <div className="p-8 text-center text-xs text-slate-500 animate-pulse">
+              Loading receipt books...
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* -------------------------------------------------------------
           TAB: MASTER DATA (BUILDINGS, FLATS & SHOPS)
       -------------------------------------------------------------- */}
       {activeTab === "masterData" && (
@@ -1207,7 +1299,7 @@ export function DashboardPage() {
             <BuildingsCollectionScreen
               buildings={buildings}
               loading={loadingBuildings}
-              eventCode={availableEvents.find((e) => e.id === effectiveEventId)?.code || "GU-26"}
+              eventCode={mandalDetails.eventCode}
               onSelectBuilding={(b) => handleSelectBuilding(b)}
               onViewFlats={(b) => handleSelectBuilding(b)}
               onOpenCollect={(b) => {
@@ -1238,13 +1330,13 @@ export function DashboardPage() {
 
                   ownerName: shop.ownerName ?? null,
                   contactMobile: shop.contactMobile ?? null,
-                  status: "not_visited",
-                  receiptCount: 0,
-                  totalCollectedAmount: 0,
-                  latestReceiptNumber: null,
-                  lastReceiptAt: null,
-                  pendingReason: null,
-                  followUpTime: null,
+                  status: (shop.status as any) || "not_visited",
+                  receiptCount: shop.receiptCount || 0,
+                  totalCollectedAmount: shop.totalCollectedAmount || 0,
+                  latestReceiptNumber: shop.latestReceiptNumber || null,
+                  lastReceiptAt: shop.lastReceiptAt || null,
+                  pendingReason: shop.followUpReason || null,
+                  followUpTime: shop.followUpTime || null,
                   followUpNotes: null,
                   followUpAt: null,
                   cachedAt: new Date().toISOString(),
@@ -1291,7 +1383,7 @@ export function DashboardPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
               <div className="rounded-xl bg-slate-50 border p-4">
                 <span className="font-semibold text-muted-foreground block text-[11px] uppercase tracking-wider">Active Event</span>
-                <span className="text-sm font-bold text-foreground mt-0.5 block">Ganesh Utsav 2026</span>
+                <span className="text-sm font-bold text-foreground mt-0.5 block">{mandalDetails.eventName}</span>
               </div>
               <div className="rounded-xl bg-slate-50 border p-4">
                 <span className="font-semibold text-muted-foreground block text-[11px] uppercase tracking-wider">Your Role</span>
@@ -1322,13 +1414,13 @@ export function DashboardPage() {
               {/* Pavti Design Setup & Customization */}
               <PavtiCustomizationPanel
                 organizationId={organizationId}
-                defaultMandalName="श्री गणेश मित्र मंडळ"
-                defaultEventName="सार्वजनिक गणेशोत्सव २०२६"
+                defaultMandalName={mandalDetails.mandalName}
+                defaultEventName={mandalDetails.eventName}
               />
 
               <CampaignExportPanel
-                eventId={session?.eventId || null}
-                eventName="Ganesh Utsav 2026"
+                eventId={session?.eventId || effectiveEventId}
+                eventName={mandalDetails.eventName}
               />
             </>
           )}
@@ -1379,10 +1471,10 @@ export function DashboardPage() {
         onClose={() => setIsMandalQrOpen(false)}
         organizationId={session?.organizationId || organizationId}
         eventId={effectiveEventId}
-        mandalName="श्री गणेश मित्र मंडळ"
-        eventName={availableEvents.find((e) => e.id === effectiveEventId)?.name || "Ganesh Utsav 2026"}
-        configuredUpiId={(availableEvents.find((e) => e.id === effectiveEventId) as any)?.upi_id}
-        configuredUpiName={(availableEvents.find((e) => e.id === effectiveEventId) as any)?.upi_name}
+        mandalName={mandalDetails.mandalName}
+        eventName={mandalDetails.eventName}
+        configuredUpiId={mandalDetails.upiId}
+        configuredUpiName={mandalDetails.upiName}
         isAdmin={isAdmin}
       />
 

@@ -257,24 +257,30 @@ describe("Phase 2K-2: End-to-End & Adversarial Receipt Book Tests", () => {
       });
     });
 
-    it("integrates seamlessly into BuildingsManagementPanel via subtab navigation", async () => {
+    it("provides dedicated panels for buildings and receipt books", async () => {
       vi.spyOn(masterDataService, "fetchOrganizationBuildings").mockResolvedValueOnce([]);
       vi.spyOn(receiptBookAdminService, "fetchOrganizationReceiptBooks").mockResolvedValueOnce([]);
 
-      render(
+      const { unmount } = render(
         <BuildingsManagementPanel
           organizationId="org-1"
           eventId="event-1"
         />
       );
 
-      // Default subtab is Residential Buildings
+      // Buildings panel has Residential and Commercial subtabs
       expect(screen.getByTestId("subtab-buildings")).toBeTruthy();
       expect(screen.getByTestId("subtab-shops")).toBeTruthy();
-      expect(screen.getByTestId("subtab-books")).toBeTruthy();
 
-      // Click Receipt Books subtab
-      fireEvent.click(screen.getByTestId("subtab-books"));
+      unmount();
+
+      // Dedicated Receipt Books Panel
+      render(
+        <ReceiptBooksManagementPanel
+          organizationId="org-1"
+          eventId="event-1"
+        />
+      );
 
       await waitFor(() => {
         expect(screen.getByTestId("receipt-books-view")).toBeTruthy();

@@ -56,6 +56,7 @@ describe("Phase 9-3B: Onboarding Service", () => {
       p_admin_name: "Sunil Patil",
       p_mobile: "9876543210",
       p_pin: "1234",
+      p_event_name: "Ganesh Utsav 2026",
     });
 
     expect(loginMock).toHaveBeenCalledWith({

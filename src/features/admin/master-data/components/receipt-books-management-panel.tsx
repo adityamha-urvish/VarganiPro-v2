@@ -15,6 +15,8 @@ import {
   type VolunteerRecord,
 } from "@/features/admin/volunteers/services/volunteer-admin.service";
 
+import { supabase } from "@/supabase/client";
+
 interface ReceiptBooksManagementPanelProps {
   organizationId: string;
   eventId?: string | null;
@@ -26,6 +28,7 @@ export function ReceiptBooksManagementPanel({
 }: ReceiptBooksManagementPanelProps) {
   const [books, setBooks] = useState<ReceiptBookAdminRecord[]>([]);
   const [volunteers, setVolunteers] = useState<VolunteerRecord[]>([]);
+  const [resolvedEventId, setResolvedEventId] = useState<string | null>(eventId || null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [assigningBookId, setAssigningBookId] = useState<string | null>(null);
@@ -39,13 +42,33 @@ export function ReceiptBooksManagementPanel({
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
+  const effectiveEventId = eventId || resolvedEventId;
+
+  useEffect(() => {
+    if (eventId) {
+      setResolvedEventId(eventId);
+    } else if (organizationId) {
+      void supabase
+        .from("events")
+        .select("id")
+        .eq("organization_id", organizationId)
+        .eq("is_active", true)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (data?.id) setResolvedEventId(data.id);
+        });
+    }
+  }, [organizationId, eventId]);
+
   const loadData = async () => {
     if (!organizationId) return;
     setLoading(true);
     setError(null);
     try {
       const [booksData, volsData] = await Promise.all([
-        fetchOrganizationReceiptBooks(organizationId, eventId),
+        fetchOrganizationReceiptBooks(organizationId, effectiveEventId),
         fetchVolunteers(organizationId).catch((err) => {
           console.warn("Could not load volunteers for assignment:", err);
           return [] as VolunteerRecord[];
@@ -63,7 +86,7 @@ export function ReceiptBooksManagementPanel({
 
   useEffect(() => {
     void loadData();
-  }, [organizationId, eventId]);
+  }, [organizationId, effectiveEventId]);
 
   const handleAssignVolunteer = async (bookId: string, volunteerId: string | null) => {
     setAssigningBookId(bookId);
@@ -127,7 +150,7 @@ export function ReceiptBooksManagementPanel({
       return;
     }
 
-    if (!eventId) {
+    if (!effectiveEventId) {
       setFormError("No active festival event found for this Mandal");
       return;
     }
@@ -136,7 +159,7 @@ export function ReceiptBooksManagementPanel({
     try {
       await createReceiptBook({
         organizationId,
-        eventId,
+        eventId: effectiveEventId,
         bookNumber: bookNumber.trim(),
         prefix: cleanPrefix,
         startNumber: parsedStart,
@@ -198,7 +221,7 @@ export function ReceiptBooksManagementPanel({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-testid="receipt-books-view">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>

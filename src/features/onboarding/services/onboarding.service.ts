@@ -6,6 +6,7 @@ export interface RegisterMandalParams {
   adminName: string;
   mobile: string;
   pin: string;
+  eventName?: string;
 }
 
 export interface RegisterMandalResult {
@@ -24,6 +25,7 @@ export async function registerMandalAndAdmin(
     p_admin_name: params.adminName.trim(),
     p_mobile: params.mobile.trim(),
     p_pin: params.pin.trim(),
+    p_event_name: params.eventName?.trim() || "Ganesh Utsav 2026",
   });
 
   if (error) {

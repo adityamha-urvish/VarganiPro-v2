@@ -60,14 +60,14 @@ export function useBuildingCollection({
     if (!effectiveOrgId) return;
     setLoadingShops(true);
     try {
-      const list = await fetchStandaloneShops(effectiveOrgId);
+      const list = await fetchStandaloneShops(effectiveOrgId, effectiveEventId);
       setShops(list);
     } catch (err) {
       console.error("Error loading commercial shops:", err);
     } finally {
       setLoadingShops(false);
     }
-  }, [effectiveOrgId]);
+  }, [effectiveOrgId, effectiveEventId]);
 
   const loadBuildings = useCallback(async () => {
     if (!effectiveEventId || !effectiveOrgId) return;

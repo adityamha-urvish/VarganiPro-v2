@@ -10,8 +10,15 @@ export function SignupPage() {
   const [adminName, setAdminName] = useState("");
   const [mobile, setMobile] = useState("");
   const [pin, setPin] = useState("");
+  const [selectedFestival, setSelectedFestival] = useState("Ganesh Utsav 2026");
+  const [customFestival, setCustomFestival] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const effectiveEventName =
+    selectedFestival === "custom"
+      ? customFestival.trim() || "Ganesh Utsav 2026"
+      : selectedFestival;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,6 +31,11 @@ export function SignupPage() {
 
     if (adminName.trim().length < 2) {
       setError("Secretary / Admin name must be at least 2 characters");
+      return;
+    }
+
+    if (selectedFestival === "custom" && customFestival.trim().length < 2) {
+      setError("Please enter a valid festival / event name");
       return;
     }
 
@@ -44,6 +56,7 @@ export function SignupPage() {
         adminName,
         mobile,
         pin,
+        eventName: effectiveEventName,
       });
 
       // Redirect to dashboard
@@ -141,6 +154,71 @@ export function SignupPage() {
               />
             </div>
 
+            <div>
+              <Label className="text-xs font-bold text-slate-700">
+                Festival / Event * <span className="text-slate-400 font-normal">· उत्सव निवडा</span>
+              </Label>
+              <div className="mt-1 grid grid-cols-2 gap-2">
+                {[
+                  { id: "Ganesh Utsav 2026", label: "🪔 Ganesh Utsav 2026" },
+                  { id: "Navratri Utsav 2026", label: "🌸 Navratri 2026" },
+                  { id: "Shiv Jayanti 2026", label: "🚩 Shiv Jayanti 2026" },
+                  { id: "Durga Puja 2026", label: "🌺 Durga Puja 2026" },
+                ].map((fest) => (
+                  <button
+                    key={fest.id}
+                    type="button"
+                    data-testid={`festival-option-${fest.id}`}
+                    onClick={() => {
+                      setSelectedFestival(fest.id);
+                      setCustomFestival("");
+                    }}
+                    className={`h-10 px-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer text-left truncate flex items-center ${
+                      selectedFestival === fest.id
+                        ? "bg-amber-100/90 text-amber-950 border-amber-400 shadow-2xs"
+                        : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                    }`}
+                  >
+                    {fest.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Custom festival button and input */}
+              <div className="mt-2">
+                {selectedFestival === "custom" ? (
+                  <div className="space-y-1">
+                    <Input
+                      data-testid="input-custom-festival"
+                      placeholder="उदा. होळी उत्सव २०२६ / New Festival"
+                      value={customFestival}
+                      onChange={(e) => setCustomFestival(e.target.value)}
+                      className="h-10 text-sm text-slate-900 font-medium rounded-xl border-amber-400 focus-visible:ring-amber-500"
+                      autoFocus
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setSelectedFestival("Ganesh Utsav 2026")}
+                      className="text-[11px] text-slate-500 hover:text-slate-800 underline font-semibold"
+                    >
+                      ← Back to standard festivals
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    data-testid="festival-option-custom"
+                    onClick={() => setSelectedFestival("custom")}
+                    className="w-full h-8 text-[11px] font-bold text-amber-900/90 hover:text-amber-950 bg-amber-50/50 hover:bg-amber-100/50 rounded-lg border border-dashed border-amber-300 transition-all cursor-pointer flex items-center justify-center gap-1"
+                  >
+                    <span>✍️</span>
+                    <span>इतर उत्सव (Custom Festival Name)</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label htmlFor="mobile" className="text-xs font-bold text-slate-700">
@@ -182,7 +260,9 @@ export function SignupPage() {
                 <span>नोंदणीनंतर काय होईल (What happens after signup):</span>
               </p>
               <p className="text-[11px] text-amber-900/90 pl-5">✓ तुमचे मंडळ आणि सेक्रेटरी खाते तयार होईल</p>
-              <p className="text-[11px] text-amber-900/90 pl-5">✓ पहिला उत्सव <strong>Ganesh Utsav 2026</strong> आपोआप सक्रिय होईल</p>
+              <p className="text-[11px] text-amber-900/90 pl-5">
+                ✓ पहिला उत्सव <strong>{effectiveEventName}</strong> आपोआप सक्रिय होईल
+              </p>
               <p className="text-[11px] text-amber-900/90 pl-5">✓ तुम्ही लगेच स्वयंसेवक जोडून वर्गणी सुरू करू शकता</p>
             </div>
 

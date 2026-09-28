@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { logout } from "@/features/auth/services/auth.service";
 import { getPendingReceiptsForOwner } from "@/lib/offline/offline-db";
 import { SetSecretPinModal } from "@/features/auth/components/set-secret-pin-modal";
+import { supabase } from "@/supabase/client";
 
 export type NavigationTab =
   | "collection"
@@ -36,6 +37,34 @@ export function AppLayout({
   const [showPendingWarning, setShowPendingWarning] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [dynamicEventName, setDynamicEventName] = useState(eventName);
+
+  useEffect(() => {
+    setDynamicEventName(eventName);
+  }, [eventName]);
+
+  useEffect(() => {
+    if (typeof supabase?.from === "function") {
+      void supabase
+        .from("events")
+        .select("name")
+        .eq("is_active", true)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+        .then(
+          ({ data }) => {
+            if (data?.name) {
+              setDynamicEventName(data.name);
+            }
+          },
+          () => {
+            // Ignore network / test mock errors
+          }
+        );
+    }
+  }, []);
+
   const [mustChangePin, setMustChangePin] = useState(() => {
     try {
       const stored = localStorage.getItem("vp_user");
@@ -132,9 +161,9 @@ export function AppLayout({
               <span className="sr-only">🛕 VarganiPro</span>
             </div>
 
-            {eventName && (
+            {dynamicEventName && (
               <span className="hidden md:inline-flex items-center rounded-full bg-amber-100/70 border border-amber-300/80 px-2.5 py-0.5 text-xs font-bold text-amber-900">
-                {eventName}
+                {dynamicEventName}
               </span>
             )}
           </div>

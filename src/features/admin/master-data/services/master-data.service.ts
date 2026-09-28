@@ -27,6 +27,9 @@ export interface PropertyRecord {
   totalCollectedAmount?: number;
   latestReceiptNumber?: number | null;
   lastReceiptAt?: string | null;
+  status?: "collected" | "pending" | "refused" | "unvisited";
+  followUpReason?: string | null;
+  followUpTime?: string | null;
   isActive: boolean;
   createdAt: string;
 }
@@ -196,7 +199,8 @@ export async function createResidentialFlat(params: {
 }
 
 export async function fetchStandaloneShops(
-  organizationId: string
+  organizationId: string,
+  eventId?: string | null
 ): Promise<PropertyRecord[]> {
   const { data, error } = await supabase
     .from("properties")
@@ -213,7 +217,7 @@ export async function fetchStandaloneShops(
     throw new Error(error.message || "Failed to load commercial shops");
   }
 
-  return (data || []).map((p: any) => ({
+  const baseShops: PropertyRecord[] = (data || []).map((p: any) => ({
     id: p.id,
     organizationId: p.organization_id,
     buildingId: null,
@@ -227,7 +231,86 @@ export async function fetchStandaloneShops(
     locationNote: p.location_note,
     isActive: p.is_active ?? true,
     createdAt: p.created_at,
+    receiptCount: 0,
+    totalCollectedAmount: 0,
+    latestReceiptNumber: null,
+    status: "unvisited",
   }));
+
+  if (!eventId || baseShops.length === 0) {
+    return baseShops;
+  }
+
+  const shopIds = baseShops.map((s) => s.id);
+
+  try {
+    const [{ data: receipts }, { data: followUps }] = await Promise.all([
+      supabase
+        .from("receipts")
+        .select("id, property_id, receipt_number, amount, created_at, status, voided_at, cancelled_at")
+        .eq("event_id", eventId)
+        .in("property_id", shopIds)
+        .in("status", ["valid", "issued"])
+        .is("voided_at", null)
+        .is("cancelled_at", null)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("collection_follow_ups")
+        .select("id, property_id, status, reason, follow_up_time, created_at")
+        .eq("event_id", eventId)
+        .in("property_id", shopIds)
+        .order("created_at", { ascending: false }),
+    ]);
+
+    const receiptMap = new Map<string, { count: number; total: number; latestNo: number | null; lastAt: string | null }>();
+    for (const r of (receipts || []) as any[]) {
+      const prev = receiptMap.get(r.property_id) || { count: 0, total: 0, latestNo: null, lastAt: null };
+      prev.count += 1;
+      prev.total += Number(r.amount || 0);
+      if (!prev.latestNo && r.receipt_number) {
+        prev.latestNo = r.receipt_number;
+        prev.lastAt = r.created_at;
+      }
+      receiptMap.set(r.property_id, prev);
+    }
+
+    const followUpMap = new Map<string, { status: string; reason: string; time: string }>();
+    for (const f of (followUps || []) as any[]) {
+      if (!followUpMap.has(f.property_id)) {
+        followUpMap.set(f.property_id, {
+          status: f.status,
+          reason: f.reason,
+          time: f.follow_up_time,
+        });
+      }
+    }
+
+    return baseShops.map((shop) => {
+      const rec = receiptMap.get(shop.id);
+      const fu = followUpMap.get(shop.id);
+
+      let status: "collected" | "pending" | "refused" | "unvisited" = "unvisited";
+      if (rec && rec.count > 0) {
+        status = "collected";
+      } else if (fu && fu.status === "pending") {
+        status = fu.reason === "refused" ? "refused" : "pending";
+      }
+
+      return {
+        ...shop,
+        status,
+        receiptCount: rec?.count || 0,
+        totalCollectedAmount: rec?.total || 0,
+        latestReceiptNumber: rec?.latestNo || null,
+        lastReceiptAt: rec?.lastAt || null,
+        followUpReason: fu?.reason || null,
+        followUpTime: fu?.time || null,
+      };
+    });
+  } catch (err) {
+    console.warn("Could not enrich commercial shops with progress:", err);
+    return baseShops;
+  }
 }
 
 export async function createStandaloneShop(params: {

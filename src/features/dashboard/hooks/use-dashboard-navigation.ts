@@ -16,6 +16,7 @@ export function parseNavigationState(search: string): DashboardNavigationState {
     rawTab === "collection" ||
     rawTab === "buildings" ||
     rawTab === "masterData" ||
+    rawTab === "receiptBooks" ||
     rawTab === "volunteers" ||
     rawTab === "handovers" ||
     rawTab === "history" ||

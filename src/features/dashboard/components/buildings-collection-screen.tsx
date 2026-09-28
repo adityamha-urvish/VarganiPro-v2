@@ -20,6 +20,7 @@ export interface BuildingsCollectionScreenProps {
   onSelectShop?: (shop: PropertyRecord) => void;
   onAddShop?: (input: { shopName: string; ownerName?: string; contactMobile?: string }) => Promise<unknown>;
   isAdmin?: boolean;
+  initialPropertyTypeFilter?: "residential" | "commercial";
 }
 
 export function BuildingsCollectionScreen({
@@ -37,8 +38,11 @@ export function BuildingsCollectionScreen({
   onSelectShop,
   onAddShop,
   isAdmin: _isAdmin = false,
+  initialPropertyTypeFilter = "residential",
 }: BuildingsCollectionScreenProps) {
-  const [propertyTypeFilter, setPropertyTypeFilter] = useState<"residential" | "commercial">("residential");
+  const [propertyTypeFilter, setPropertyTypeFilter] = useState<"residential" | "commercial">(
+    initialPropertyTypeFilter
+  );
 
   // Add Building Modal State
 
@@ -240,6 +244,10 @@ export function BuildingsCollectionScreen({
           <div className="space-y-3">
             {shops.map((shop, idx) => {
               const style = pastelStyles[idx % pastelStyles.length];
+              const isCollected = (shop.receiptCount || 0) > 0 || shop.status === "collected";
+              const isPending = shop.status === "pending";
+              const isRefused = shop.status === "refused";
+
               return (
                 <div
                   key={shop.id}
@@ -254,11 +262,53 @@ export function BuildingsCollectionScreen({
                       <div className="text-xs font-semibold text-slate-600 mt-1 space-y-0.5">
                         {shop.ownerName && <p>👤 {shop.ownerName}</p>}
                         {shop.contactMobile && <p>📞 {shop.contactMobile}</p>}
+                        {isCollected && shop.totalCollectedAmount !== undefined && (
+                          <p className="text-emerald-700 font-bold">
+                            💰 ₹{shop.totalCollectedAmount} जमा (Collected)
+                          </p>
+                        )}
+                        {isPending && shop.followUpReason && (
+                          <p className="text-amber-800 font-semibold">
+                            ⏰ कारण: {shop.followUpReason} {shop.followUpTime ? `(${shop.followUpTime})` : ""}
+                          </p>
+                        )}
                       </div>
                     </div>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/80 border border-slate-200 text-slate-700">
-                      Commercial
-                    </span>
+
+                    <div>
+                      {isCollected ? (
+                        <span
+                          data-testid={`shop-status-${shop.id}-collected`}
+                          className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-600 text-white shadow-2xs inline-flex items-center gap-1"
+                        >
+                          <span>✓</span>
+                          <span>Collected {shop.latestReceiptNumber ? `(#${shop.latestReceiptNumber})` : ""}</span>
+                        </span>
+                      ) : isPending ? (
+                        <span
+                          data-testid={`shop-status-${shop.id}-pending`}
+                          className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500 text-white shadow-2xs inline-flex items-center gap-1"
+                        >
+                          <span>⏰</span>
+                          <span>Pending</span>
+                        </span>
+                      ) : isRefused ? (
+                        <span
+                          data-testid={`shop-status-${shop.id}-refused`}
+                          className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-rose-600 text-white shadow-2xs inline-flex items-center gap-1"
+                        >
+                          <span>✕</span>
+                          <span>Refused</span>
+                        </span>
+                      ) : (
+                        <span
+                          data-testid={`shop-status-${shop.id}-uncollected`}
+                          className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/90 border border-slate-200 text-slate-700"
+                        >
+                          Commercial
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   <div className="pt-1">
@@ -267,9 +317,20 @@ export function BuildingsCollectionScreen({
                         type="button"
                         data-testid={`btn-collect-shop-${shop.id}`}
                         onClick={() => onSelectShop(shop)}
-                        className="w-full h-10 rounded-xl bg-[#E56345] hover:bg-[#D45336] text-white text-xs font-black tracking-wide shadow-xs active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                        className={`w-full h-10 rounded-xl text-white text-xs font-black tracking-wide shadow-xs active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                          isCollected
+                            ? "bg-emerald-700 hover:bg-emerald-800"
+                            : "bg-[#E56345] hover:bg-[#D45336]"
+                        }`}
                       >
-                        <span>⚡ collect receipt (पावती फाडा)</span>
+                        <span>⚡</span>
+                        <span>
+                          {isCollected
+                            ? "Collect Additional (दुसऱ्या पावतीसाठी)"
+                            : isPending
+                            ? "Collect Now (पावती फाडा)"
+                            : "collect receipt (पावती फाडा)"}
+                        </span>
                       </button>
                     )}
                   </div>
