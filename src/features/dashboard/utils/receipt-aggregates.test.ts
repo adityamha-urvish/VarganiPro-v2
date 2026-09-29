@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { LocalReceipt } from "@/lib/offline/offline-db";
-import { calculateReceiptAggregates } from "./receipt-aggregates";
+import {
+  calculateReceiptAggregates,
+  calculateTodayPersonalAggregates,
+  isTodayIST,
+} from "./receipt-aggregates";
 
 function createMockReceipt(overrides: Partial<LocalReceipt> = {}): LocalReceipt {
+  const timestamp = overrides.createdAt || overrides.offlineCreatedAt || new Date().toISOString();
   return {
     clientReceiptId: "mock-client-id",
     organizationId: "org-1",
@@ -18,13 +23,13 @@ function createMockReceipt(overrides: Partial<LocalReceipt> = {}): LocalReceipt 
     paymentMode: "cash",
     paymentReference: null,
     notes: null,
-    offlineCreatedAt: new Date().toISOString(),
+    offlineCreatedAt: timestamp,
     syncStatus: "synced",
     syncAttempts: 0,
     lastSyncAttemptAt: null,
     lastSyncError: null,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    createdAt: timestamp,
+    updatedAt: timestamp,
     ...overrides,
   };
 }
@@ -169,5 +174,41 @@ describe("calculateReceiptAggregates", () => {
     expect(result.issuedReceipts).toHaveLength(1);
     expect(result.totalAmount).toBe(0);
     expect(result.cashAmount).toBe(0);
+  });
+});
+
+describe("isTodayIST", () => {
+  it("returns true for timestamps matching today in Asia/Kolkata", () => {
+    expect(isTodayIST(new Date().toISOString())).toBe(true);
+  });
+
+  it("returns false for yesterday and null/invalid dates", () => {
+    const yesterday = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+    expect(isTodayIST(yesterday)).toBe(false);
+    expect(isTodayIST(null)).toBe(false);
+    expect(isTodayIST("invalid-date")).toBe(false);
+  });
+});
+
+describe("calculateTodayPersonalAggregates", () => {
+  it("aggregates receipts created today including pending and syncing, excluding voided", () => {
+    const now = new Date().toISOString();
+    const old = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+
+    const receipts: LocalReceipt[] = [
+      createMockReceipt({ amount: 500, paymentMode: "cash", syncStatus: "synced", createdAt: now, offlineCreatedAt: now }),
+      createMockReceipt({ amount: 300, paymentMode: "upi", syncStatus: "pending", createdAt: now, offlineCreatedAt: now }),
+      createMockReceipt({ amount: 200, paymentMode: "cash", syncStatus: "syncing", createdAt: now, offlineCreatedAt: now }),
+      createMockReceipt({ amount: 1000, paymentMode: "cash", syncStatus: "synced", createdAt: old, offlineCreatedAt: old }), // Yesterday
+      createMockReceipt({ amount: 800, paymentMode: "cash", syncStatus: "synced", createdAt: now, offlineCreatedAt: now, status: "voided" as any }), // Voided
+    ];
+
+    const result = calculateTodayPersonalAggregates(receipts);
+
+    expect(result.todayCount).toBe(3);
+    expect(result.todayTotal).toBe(1000); // 500 + 300 + 200
+    expect(result.todayCash).toBe(700);   // 500 + 200
+    expect(result.todayUpi).toBe(300);    // 300
+    expect(result.pendingSyncCount).toBe(2); // 1 pending + 1 syncing
   });
 });

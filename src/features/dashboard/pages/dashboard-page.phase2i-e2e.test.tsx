@@ -94,8 +94,8 @@ vi.mock("@/supabase/client", () => {
         if (fnName === "current_user_role") {
           return { data: "volunteer", error: null };
         }
-        if (fnName === "create_property") {
-          return { data: { property_id: "prop-402", success: true }, error: null };
+        if (fnName === "create_property" || fnName === "quick_add_flat") {
+          return { data: { property_id: "prop-402", success: true, unit_number: "402" }, error: null };
         }
         return { data: { success: true }, error: null };
       }),
@@ -243,7 +243,7 @@ describe("Phase 2I: End-to-End Acceptance QA Test Suite", () => {
     };
     createLocalReceiptMock.mockResolvedValue(mockCreatedReceipt);
 
-    const submitReceiptBtn = screen.getByRole("button", { name: /Collect Receipt/i });
+    const submitReceiptBtn = await screen.findByRole("button", { name: /Collect Receipt/i });
     fireEvent.click(submitReceiptBtn);
 
     // G & H: Confirm receipt succeeds and building counts update to 1 Flat Recorded, 1 Collected, ₹501 Raised

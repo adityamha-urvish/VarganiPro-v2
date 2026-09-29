@@ -99,13 +99,13 @@ const mockReceipt: LocalReceipt = {
   paymentMode: "cash",
   paymentReference: null,
   notes: null,
-  offlineCreatedAt: "2026-08-23T10:00:00Z",
+  offlineCreatedAt: new Date().toISOString(),
   syncStatus: "synced",
   syncAttempts: 1,
-  lastSyncAttemptAt: "2026-08-23T10:01:00Z",
+  lastSyncAttemptAt: new Date().toISOString(),
   lastSyncError: null,
-  createdAt: "2026-08-23T10:00:00Z",
-  updatedAt: "2026-08-23T10:01:00Z",
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
 };
 
 describe("DashboardPage Bootstrap & Rehydration Characterization", () => {

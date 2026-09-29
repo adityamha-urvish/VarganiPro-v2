@@ -34,6 +34,11 @@ import { CampaignExportPanel } from "@/features/analytics/components/campaign-ex
 import { PavtiCustomizationPanel } from "@/features/pavti/components/pavti-customization-panel";
 import { MandalQrModal } from "@/features/mandal-qr/components/mandal-qr-modal";
 import { ExpensesPanel } from "@/features/expenses/components/expenses-panel";
+import { getEventExpenses } from "@/features/expenses/services/expenses.service";
+import {
+  getEventCollectionSummary,
+  type EventCollectionSummary,
+} from "@/features/analytics/services/event-collection-summary.service";
 import { useSecretaryAnalytics } from "@/features/analytics/hooks/use-secretary-analytics";
 import { useAdminHandovers } from "../hooks/use-admin-handovers";
 import { useBuildingCollection } from "../hooks/use-building-collection";
@@ -45,7 +50,10 @@ import { useStartCollection } from "../hooks/use-start-collection";
 import { useDashboardNavigation } from "../hooks/use-dashboard-navigation";
 import { useVolunteerHandover } from "../hooks/use-volunteer-handover";
 import { printReceipt } from "../utils/print-receipt";
-import { calculateReceiptAggregates } from "../utils/receipt-aggregates";
+import {
+  calculateReceiptAggregates,
+  calculateTodayPersonalAggregates,
+} from "../utils/receipt-aggregates";
 
 export function DashboardPage() {
   const nav = useDashboardNavigation();
@@ -470,6 +478,53 @@ export function DashboardPage() {
     isAdmin,
   });
 
+  const [expensesSummary, setExpensesSummary] = useState<{
+    totalAmount: number;
+    todayAmount: number;
+    count: number;
+  }>({ totalAmount: 0, todayAmount: 0, count: 0 });
+
+  const [eventCollectionSummary, setEventCollectionSummary] =
+    useState<EventCollectionSummary | null>(null);
+
+  useEffect(() => {
+    if (!effectiveEventId) return;
+    let isMounted = true;
+
+    async function loadFinancialSummaries() {
+      try {
+        const [expRes, colRes] = await Promise.all([
+          getEventExpenses(effectiveEventId!),
+          !isAdmin
+            ? getEventCollectionSummary(effectiveEventId!)
+            : Promise.resolve({ success: false, data: undefined }),
+        ]);
+
+        if (isMounted) {
+          if (expRes.success && expRes.data) {
+            setExpensesSummary({
+              totalAmount: expRes.data.totalAmount,
+              todayAmount: expRes.data.todayAmount,
+              count: expRes.data.count,
+            });
+          }
+          if (colRes.success && colRes.data) {
+            setEventCollectionSummary(colRes.data);
+          }
+        }
+      } catch (err) {
+        console.warn("Could not load financial summaries:", err);
+      }
+    }
+
+    void loadFinancialSummaries();
+    return () => {
+      isMounted = false;
+    };
+  }, [effectiveEventId, isAdmin, receipts.length]);
+
+  const todayPersonal = calculateTodayPersonalAggregates(receipts);
+
   function handlePrintReceipt(receipt: LocalReceipt) {
     const result = printReceipt(receipt, session);
 
@@ -545,6 +600,49 @@ export function DashboardPage() {
                 cashAmount={isAdmin ? (secretaryMetrics?.festival_total?.cash_amount ?? cashAmount) : cashAmount}
                 upiAmount={isAdmin ? (secretaryMetrics?.festival_total?.upi_amount ?? upiAmount) : upiAmount}
                 receiptCount={isAdmin ? (secretaryMetrics?.festival_total?.receipt_count ?? issuedReceipts.length) : issuedReceipts.length}
+                adminTotalMetrics={
+                  isAdmin
+                    ? {
+                        totalAmount: secretaryMetrics?.festival_total?.total_amount ?? totalAmount,
+                        cashAmount: secretaryMetrics?.festival_total?.cash_amount ?? cashAmount,
+                        upiAmount: secretaryMetrics?.festival_total?.upi_amount ?? upiAmount,
+                        receiptCount: secretaryMetrics?.festival_total?.receipt_count ?? issuedReceipts.length,
+                      }
+                    : undefined
+                }
+                adminTodayMetrics={
+                  isAdmin
+                    ? {
+                        totalAmount: secretaryMetrics?.today?.total_amount ?? 0,
+                        cashAmount: secretaryMetrics?.today?.cash_amount ?? 0,
+                        upiAmount: secretaryMetrics?.today?.upi_amount ?? 0,
+                        receiptCount: secretaryMetrics?.today?.receipt_count ?? 0,
+                      }
+                    : undefined
+                }
+                volunteerMyTodayMetrics={
+                  !isAdmin
+                    ? {
+                        totalAmount: todayPersonal.todayTotal,
+                        cashAmount: todayPersonal.todayCash,
+                        upiAmount: todayPersonal.todayUpi,
+                        receiptCount: todayPersonal.todayCount,
+                        pendingSyncCount: todayPersonal.pendingSyncCount,
+                      }
+                    : undefined
+                }
+                volunteerMandalMetrics={
+                  !isAdmin
+                    ? {
+                        totalAmount: eventCollectionSummary?.total_amount ?? totalAmount,
+                        cashAmount: eventCollectionSummary?.cash_amount ?? cashAmount,
+                        upiAmount: eventCollectionSummary?.upi_amount ?? upiAmount,
+                        receiptCount: eventCollectionSummary?.receipt_count ?? issuedReceipts.length,
+                      }
+                    : undefined
+                }
+                totalExpenses={expensesSummary.totalAmount}
+                todayExpenses={expensesSummary.todayAmount}
                 isLive={true}
                 isAdmin={isAdmin}
                 hasActiveSession={Boolean(session && session.sessionStatus === "open")}

@@ -94,6 +94,7 @@ export interface LocalReceipt {
 
   createdAt: string;
   updatedAt: string;
+  status?: "valid" | "voided" | "cancelled" | string;
 }
 
 export interface OfflineBookState {
