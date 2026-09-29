@@ -1308,19 +1308,39 @@ export async function updateLocalPropertyProgress(
 
     getReq.onsuccess = () => {
       const existing = getReq.result as CachedPropertyProgress | undefined;
-      if (!existing) {
-        db.close();
-        resolve();
-        return;
-      }
 
-      const updated: CachedPropertyProgress = {
-        ...existing,
-        ...updates,
-        eventId,
-        buildingId,
-        cachedAt: new Date().toISOString(),
-      };
+      const updated: CachedPropertyProgress = existing
+        ? {
+            ...existing,
+            ...updates,
+            eventId,
+            buildingId,
+            cachedAt: new Date().toISOString(),
+          }
+        : {
+            propertyId,
+            buildingId,
+            eventId,
+            organizationId: "",
+            propertyType: "flat",
+            unitNumber: "",
+            flatNumber: null,
+            floorNumber: null,
+            shopName: null,
+            ownerName: null,
+            contactMobile: null,
+            status: "not_visited",
+            receiptCount: 0,
+            totalCollectedAmount: 0,
+            latestReceiptNumber: null,
+            lastReceiptAt: null,
+            pendingReason: null,
+            followUpTime: null,
+            followUpNotes: null,
+            followUpAt: null,
+            ...updates,
+            cachedAt: new Date().toISOString(),
+          };
 
       store.put(updated);
     };

@@ -4,7 +4,10 @@ import type {
   CachedPropertyProgress,
   LocalReceipt,
 } from "@/lib/offline/offline-db";
-import { updateLocalPropertyProgress } from "@/lib/offline/offline-db";
+import {
+  updateLocalPropertyProgress,
+  saveCachedBuildingProperties,
+} from "@/lib/offline/offline-db";
 import {
   fetchEventBuildingSummaries,
   fetchBuildingPropertiesProgress,
@@ -182,6 +185,8 @@ export function useBuildingCollection({
                 totalCollectedAmount: ((selectedProperty.totalCollectedAmount || 0) + input.amount),
                 latestReceiptNumber: receipt.receiptNumber,
                 lastReceiptAt: receipt.offlineCreatedAt,
+                ownerName: input.donorName,
+                contactMobile: input.donorMobile,
               }
             );
           } catch (dbErr) {
@@ -199,6 +204,8 @@ export function useBuildingCollection({
               totalCollectedAmount: (p.totalCollectedAmount || 0) + input.amount,
               latestReceiptNumber: receipt.receiptNumber,
               lastReceiptAt: receipt.offlineCreatedAt,
+              ownerName: input.donorName,
+              contactMobile: input.donorMobile,
             };
           }
           return p;
@@ -281,6 +288,24 @@ export function useBuildingCollection({
       });
       setProperties(updatedProps);
 
+      // Persist follow-up to IndexedDB
+      try {
+        await updateLocalPropertyProgress(
+          session.eventId,
+          selectedBuilding.buildingId,
+          selectedProperty.propertyId,
+          {
+            status: newStatus,
+            pendingReason: reason,
+            followUpTime: followUpTime ?? null,
+            followUpNotes: notes ?? null,
+            followUpAt: new Date().toISOString(),
+          }
+        );
+      } catch (dbErr) {
+        console.warn("Failed to update local property progress in IndexedDB on follow-up:", dbErr);
+      }
+
       // Close modal and drawer, reset property selection
       setIsPendingDrawerOpen(false);
       setIsFastReceiptOpen(false);
@@ -332,6 +357,13 @@ export function useBuildingCollection({
           followUpAt: null,
           cachedAt: new Date().toISOString(),
         };
+
+        // Immediately persist newly discovered flat into IndexedDB PROPERTIES_STORE
+        try {
+          await saveCachedBuildingProperties(evId, selectedBuilding.buildingId, [newProperty]);
+        } catch (cacheErr) {
+          console.warn("Failed to cache new property in IndexedDB:", cacheErr);
+        }
 
         setProperties((prev) => {
           if (

@@ -120,29 +120,35 @@ export async function fetchBuildingPropertiesProgress(
     }
 
     const res = data as BuildingPropertiesRpcResponse;
-    const properties: CachedPropertyProgress[] = (res.properties || []).map((p) => ({
-      propertyId: p.property_id,
-      buildingId,
-      eventId,
-      organizationId,
-      propertyType: p.property_type,
-      unitNumber: p.unit_number,
-      flatNumber: p.flat_number,
-      floorNumber: p.floor_number,
-      shopName: p.shop_name,
-      ownerName: p.owner_name,
-      contactMobile: p.contact_mobile,
-      status: p.status,
-      receiptCount: Number(p.receipt_count || 0),
-      totalCollectedAmount: Number(p.total_collected_amount || 0),
-      latestReceiptNumber: p.latest_receipt_number,
-      lastReceiptAt: p.last_receipt_at,
-      pendingReason: p.pending_reason,
-      followUpTime: p.follow_up_time,
-      followUpNotes: p.follow_up_notes,
-      followUpAt: p.follow_up_at,
-      cachedAt: new Date().toISOString(),
-    }));
+    const localCached = await getCachedBuildingProperties(eventId, buildingId);
+    const localMap = new Map(localCached.map((lp) => [lp.propertyId, lp]));
+
+    const properties: CachedPropertyProgress[] = (res.properties || []).map((p) => {
+      const local = localMap.get(p.property_id);
+      return {
+        propertyId: p.property_id,
+        buildingId,
+        eventId,
+        organizationId,
+        propertyType: p.property_type,
+        unitNumber: p.unit_number,
+        flatNumber: p.flat_number,
+        floorNumber: p.floor_number,
+        shopName: p.shop_name,
+        ownerName: p.owner_name || local?.ownerName || null,
+        contactMobile: p.contact_mobile || local?.contactMobile || null,
+        status: p.status,
+        receiptCount: Number(p.receipt_count || 0),
+        totalCollectedAmount: Number(p.total_collected_amount || 0),
+        latestReceiptNumber: p.latest_receipt_number,
+        lastReceiptAt: p.last_receipt_at,
+        pendingReason: p.pending_reason,
+        followUpTime: p.follow_up_time,
+        followUpNotes: p.follow_up_notes,
+        followUpAt: p.follow_up_at,
+        cachedAt: new Date().toISOString(),
+      };
+    });
 
     await saveCachedBuildingProperties(eventId, buildingId, properties);
     return properties;

@@ -1,4 +1,4 @@
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, useEffect, useRef, type FormEvent } from "react";
 import type { CachedPropertyProgress } from "@/lib/offline/offline-db";
 import type { PaymentMode } from "./receipt-creation-form";
 import { Button } from "@/components/ui/button";
@@ -56,17 +56,28 @@ export function FastReceiptModal({
   const [donorMobile, setDonorMobile] = useState<string>("");
   const [isAddingAdditional, setIsAddingAdditional] = useState<boolean>(false);
 
+  const prevPropertyIdRef = useRef<string | null>(null);
+  const prevIsOpenRef = useRef<boolean>(false);
+
   useEffect(() => {
-    if (property) {
+    const isOpening = isOpen && !prevIsOpenRef.current;
+    const isDifferentProperty = Boolean(
+      property && property.propertyId !== prevPropertyIdRef.current
+    );
+
+    if (property && (isOpening || isDifferentProperty)) {
       setAmount("501");
       setPaymentMode("cash");
       setPaymentReference("");
       setCustomDonorName(property.ownerName || "");
       setDonorMobile(property.contactMobile || "");
-      setShowDonorDetails(false);
+      setShowDonorDetails(Boolean(property.ownerName || property.contactMobile));
       setIsAddingAdditional(false);
     }
-  }, [property]);
+
+    prevPropertyIdRef.current = property?.propertyId ?? null;
+    prevIsOpenRef.current = isOpen;
+  }, [isOpen, property]);
 
   if (!isOpen || !property) return null;
 
