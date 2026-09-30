@@ -2,17 +2,20 @@ import { useState, useCallback } from "react";
 
 import {
   getLocalReceipts,
+  getLocalReceiptsForSession,
   type LocalReceipt,
 } from "@/lib/offline/offline-db";
 import { syncNextReceipt } from "@/lib/offline/receipt-sync";
 
 export interface UseReceiptHistoryOptions {
   receiptBookId?: string | null;
+  collectionSessionId?: string | null;
   onSyncMessage?: (message: string | null) => void;
 }
 
 export function useReceiptHistory({
   receiptBookId,
+  collectionSessionId,
   onSyncMessage,
 }: UseReceiptHistoryOptions = {}) {
   const [receipts, setReceipts] = useState<LocalReceipt[]>([]);
@@ -20,20 +23,28 @@ export function useReceiptHistory({
 
   /*
    * Load all locally stored receipts
-   * for the active receipt book.
+   * scoped by collectionSessionId (if provided) or receiptBookId.
    */
   const loadReceiptHistory = useCallback(
-    async (bookId?: string) => {
+    async (bookId?: string, sessionId?: string) => {
+      const targetSessionId = sessionId ?? collectionSessionId;
       const targetBookId = bookId ?? receiptBookId;
 
-      if (!targetBookId) {
+      if (!targetSessionId && !targetBookId) {
         return;
       }
 
       setHistoryLoading(true);
 
       try {
-        const localReceipts = await getLocalReceipts(targetBookId);
+        let localReceipts: LocalReceipt[];
+        if (targetSessionId) {
+          localReceipts = await getLocalReceiptsForSession(targetSessionId);
+        } else if (targetBookId) {
+          localReceipts = await getLocalReceipts(targetBookId);
+        } else {
+          localReceipts = [];
+        }
 
         console.log("LOCAL RECEIPT HISTORY:", localReceipts);
 
@@ -44,7 +55,7 @@ export function useReceiptHistory({
         setHistoryLoading(false);
       }
     },
-    [receiptBookId]
+    [collectionSessionId, receiptBookId]
   );
 
   /*
@@ -65,7 +76,7 @@ export function useReceiptHistory({
          * No pending receipt is a valid state.
          */
         if (!result) {
-          await loadReceiptHistory(receiptBookId);
+          await loadReceiptHistory(receiptBookId, collectionSessionId ?? undefined);
 
           onSyncMessage?.(
             "No pending receipts to synchronize."
@@ -76,7 +87,7 @@ export function useReceiptHistory({
 
         console.log("MANUAL SYNC RESULT:", result);
 
-        await loadReceiptHistory(receiptBookId);
+        await loadReceiptHistory(receiptBookId, collectionSessionId ?? undefined);
 
         if (result.success) {
           onSyncMessage?.(
@@ -103,7 +114,7 @@ export function useReceiptHistory({
         );
       }
     },
-    [receiptBookId, onSyncMessage, loadReceiptHistory]
+    [receiptBookId, collectionSessionId, onSyncMessage, loadReceiptHistory]
   );
 
   return {

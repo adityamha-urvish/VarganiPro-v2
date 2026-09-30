@@ -35,6 +35,7 @@ vi.mock("@/features/collection/services/collection-progress.service", () => ({
 
 vi.mock("@/lib/offline/offline-db", () => ({
   getLocalReceipts: getLocalReceiptsMock,
+  getLocalReceiptsForSession: getLocalReceiptsMock,
   mergeOfflineBookState: mergeOfflineBookStateMock,
 }));
 
@@ -496,7 +497,7 @@ describe("DashboardPage start collection workflow characterization", () => {
       );
     });
 
-    expect(getLocalReceiptsMock).toHaveBeenCalledWith("book-1");
+    expect(getLocalReceiptsMock).toHaveBeenCalledWith("session-new-1");
 
     expect(await screen.findByRole("heading", { name: "New Receipt" })).toBeTruthy();
   });

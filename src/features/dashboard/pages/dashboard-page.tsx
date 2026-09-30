@@ -83,7 +83,7 @@ export function DashboardPage() {
     ensureOfflineBookState,
   } = useDashboardBootstrap({
     onSessionLoaded: async (activeSession) => {
-      await loadReceiptHistory(activeSession.receiptBookId);
+      await loadReceiptHistory(activeSession.receiptBookId, activeSession.sessionId);
       await loadSessionHandover(activeSession.sessionId);
     },
   });
@@ -105,6 +105,7 @@ export function DashboardPage() {
     handleSyncNextReceipt,
   } = useReceiptHistory({
     receiptBookId: session?.receiptBookId,
+    collectionSessionId: session?.sessionId,
     onSyncMessage: (msg) => setSyncMessage(msg),
   });
 
@@ -153,7 +154,7 @@ export function DashboardPage() {
       setSession(newSession);
       setOrganizationId(newSession.organizationId);
       await ensureOfflineBookState(newSession);
-      await loadReceiptHistory(newSession.receiptBookId);
+      await loadReceiptHistory(newSession.receiptBookId, newSession.sessionId);
       setHandover(null);
       nav.openCollectMode();
     },
@@ -426,10 +427,10 @@ export function DashboardPage() {
   useEffect(() => {
     if (!session?.receiptBookId) return;
     const unsubscribe = setupAutoSync(session.receiptBookId, undefined, () => {
-      void loadReceiptHistory(session.receiptBookId);
+      void loadReceiptHistory(session.receiptBookId, session.sessionId);
     });
     return unsubscribe;
-  }, [session?.receiptBookId, loadReceiptHistory]);
+  }, [session?.receiptBookId, session?.sessionId, loadReceiptHistory]);
 
   useEffect(() => {
     if (isAdmin && organizationId) {

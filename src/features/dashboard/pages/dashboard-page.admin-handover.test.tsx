@@ -33,6 +33,7 @@ vi.mock("@/features/collection/services/collection-progress.service", () => ({
 
 vi.mock("@/lib/offline/offline-db", () => ({
   getLocalReceipts,
+  getLocalReceiptsForSession: getLocalReceipts,
   mergeOfflineBookState: vi.fn(),
 }));
 

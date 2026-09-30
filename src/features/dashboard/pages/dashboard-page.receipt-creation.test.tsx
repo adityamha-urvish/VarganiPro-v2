@@ -40,6 +40,7 @@ vi.mock("@/lib/offline/receipt-store", () => ({
 
 vi.mock("@/lib/offline/offline-db", () => ({
   getLocalReceipts: getLocalReceiptsMock,
+  getLocalReceiptsForSession: getLocalReceiptsMock,
   mergeOfflineBookState: vi.fn(),
 }));
 
@@ -295,7 +296,7 @@ describe("DashboardPage receipt creation workflow characterization", () => {
       expect(syncNextReceiptMock).toHaveBeenCalledWith("book-1");
     });
 
-    expect(getLocalReceiptsMock).toHaveBeenCalledWith("book-1");
+    expect(getLocalReceiptsMock).toHaveBeenCalledWith("session-open-101");
 
     expect(await screen.findByText("Receipt created")).toBeTruthy();
     expect(screen.getAllByText(/101/).length).toBeGreaterThanOrEqual(1);

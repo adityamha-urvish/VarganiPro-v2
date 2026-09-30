@@ -1,7 +1,7 @@
 import { supabase } from "@/supabase/client";
 
 const DB_NAME = "varganipro-offline";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 const RECEIPTS_STORE = "receipts";
 const META_STORE = "metadata";
@@ -204,7 +204,7 @@ function openDatabase(): Promise<IDBDatabase> {
       );
     };
 
-    request.onupgradeneeded = () => {
+    request.onupgradeneeded = (event) => {
       const db = request.result;
 
       if (
@@ -241,6 +241,26 @@ function openDatabase(): Promise<IDBDatabase> {
           ],
           { unique: true }
         );
+
+        receipts.createIndex(
+          "byCollectionSession",
+          "collectionSessionId",
+          { unique: false }
+        );
+      } else {
+        const transaction =
+          (event.target as IDBOpenDBRequest)?.transaction ??
+          request.transaction;
+        if (transaction) {
+          const receipts = transaction.objectStore(RECEIPTS_STORE);
+          if (!receipts.indexNames.contains("byCollectionSession")) {
+            receipts.createIndex(
+              "byCollectionSession",
+              "collectionSessionId",
+              { unique: false }
+            );
+          }
+        }
       }
 
       if (
@@ -1132,6 +1152,72 @@ export async function getLocalReceipts(
         request.error ??
           new Error(
             "Unable to read local receipt history"
+          )
+      );
+    };
+  });
+}
+
+export async function getLocalReceiptsForSession(
+  collectionSessionId: string,
+  ownerUserId?: string
+): Promise<LocalReceipt[]> {
+  const currentOwner = ownerUserId ?? (await getAuthenticatedUserId());
+  const db = await openDatabase();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(
+      RECEIPTS_STORE,
+      "readonly"
+    );
+    const store = transaction.objectStore(RECEIPTS_STORE);
+
+    let request: IDBRequest<LocalReceipt[]>;
+    const hasSessionIndex = store.indexNames.contains("byCollectionSession");
+
+    if (hasSessionIndex) {
+      request = store
+        .index("byCollectionSession")
+        .getAll(collectionSessionId);
+    } else {
+      request = store.getAll();
+    }
+
+    request.onsuccess = () => {
+      db.close();
+
+      let receipts = (request.result || []) as LocalReceipt[];
+
+      if (!hasSessionIndex) {
+        receipts = receipts.filter(
+          (receipt) => receipt.collectionSessionId === collectionSessionId
+        );
+      }
+
+      if (currentOwner) {
+        receipts = receipts.filter(
+          (receipt) =>
+            !receipt.ownerUserId ||
+            receipt.ownerUserId === currentOwner
+        );
+      }
+
+      receipts.sort(
+        (a, b) =>
+          b.receiptNumber -
+          a.receiptNumber
+      );
+
+      resolve(receipts);
+    };
+
+    request.onerror = () => {
+      db.close();
+
+      reject(
+        request.error ??
+          new Error(
+            "Unable to read local session receipt history"
           )
       );
     };

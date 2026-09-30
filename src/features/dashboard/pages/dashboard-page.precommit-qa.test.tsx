@@ -51,6 +51,7 @@ vi.mock("@/lib/offline/receipt-sync", () => ({
 
 vi.mock("@/lib/offline/offline-db", () => ({
   getLocalReceipts: getLocalReceiptsMock,
+  getLocalReceiptsForSession: getLocalReceiptsMock,
   mergeOfflineBookState: mergeOfflineBookStateMock,
   saveCachedBuildingSummaries: vi.fn(async () => {}),
   getCachedBuildingSummaries: vi.fn(async () => []),

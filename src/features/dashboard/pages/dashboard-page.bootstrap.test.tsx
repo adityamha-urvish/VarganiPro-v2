@@ -39,6 +39,7 @@ vi.mock("@/features/collection/services/collection-progress.service", () => ({
 
 vi.mock("@/lib/offline/offline-db", () => ({
   getLocalReceipts: getLocalReceiptsMock,
+  getLocalReceiptsForSession: getLocalReceiptsMock,
   mergeOfflineBookState: mergeOfflineBookStateMock,
 }));
 
@@ -322,7 +323,7 @@ describe("DashboardPage Bootstrap & Rehydration Characterization", () => {
     );
 
     // Verifies receipt history hydration
-    expect(getLocalReceiptsMock).toHaveBeenCalledWith("book-1");
+    expect(getLocalReceiptsMock).toHaveBeenCalledWith("session-open-1");
 
     // Verifies Volunteer Home is present for open session
     const collectBtn = screen.getByTestId("volunteer-collect-btn");
@@ -368,7 +369,7 @@ describe("DashboardPage Bootstrap & Rehydration Characterization", () => {
     );
 
     // Receipt history was still loaded
-    expect(getLocalReceiptsMock).toHaveBeenCalledWith("book-1");
+    expect(getLocalReceiptsMock).toHaveBeenCalledWith("session-open-1");
 
     // Error alert is not shown since recovery succeeded
     expect(
