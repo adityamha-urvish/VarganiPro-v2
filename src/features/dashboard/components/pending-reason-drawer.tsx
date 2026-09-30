@@ -116,7 +116,7 @@ export function PendingReasonDrawer({
             }`}
             onClick={handleSubmit}
           >
-            {selectedReason === "refused" ? "Record Refusal & Next →" : "Save Pending & Next →"}
+            {selectedReason === "refused" ? "Record Refusal" : "Save Pending"}
           </Button>
         </div>
       </div>

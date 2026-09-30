@@ -338,6 +338,9 @@ export function DashboardPage() {
       });
     },
     onReceiptHistoryRefresh: loadReceiptHistory,
+    onFollowUpRecorded: () => {
+      nav.selectFlatId(null);
+    },
   });
 
   // Sync nav.buildingId with selectedBuilding
@@ -1623,7 +1626,10 @@ export function DashboardPage() {
         unitNumber={selectedProperty?.unitNumber || ""}
         isOpen={isPendingDrawerOpen}
         onClose={() => setIsPendingDrawerOpen(false)}
-        onSubmitReason={(reason, time, notes) => void submitFollowUp(reason, time, notes)}
+        onSubmitReason={(reason, time, notes) => {
+          nav.selectFlatId(null);
+          void submitFollowUp(reason, time, notes);
+        }}
       />
 
       {/* Global Preview Modal */}

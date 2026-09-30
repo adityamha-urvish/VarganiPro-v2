@@ -34,6 +34,7 @@ export interface UseBuildingCollectionProps {
   organizationId?: string | null;
   onReceiptCreated: (receipt: LocalReceipt) => void;
   onReceiptHistoryRefresh: (receiptBookId: string) => Promise<void>;
+  onFollowUpRecorded?: () => void;
 }
 
 export function useBuildingCollection({
@@ -42,6 +43,7 @@ export function useBuildingCollection({
   organizationId,
   onReceiptCreated,
   onReceiptHistoryRefresh,
+  onFollowUpRecorded,
 }: UseBuildingCollectionProps) {
   const [buildings, setBuildings] = useState<CachedBuildingSummary[]>([]);
   const [selectedBuilding, setSelectedBuilding] = useState<CachedBuildingSummary | null>(null);
@@ -310,8 +312,12 @@ export function useBuildingCollection({
       setIsPendingDrawerOpen(false);
       setIsFastReceiptOpen(false);
       setSelectedProperty(null);
+
+      if (onFollowUpRecorded) {
+        onFollowUpRecorded();
+      }
     },
-    [session, selectedBuilding, selectedProperty, properties]
+    [session, selectedBuilding, selectedProperty, properties, onFollowUpRecorded]
   );
 
   const addPropertyDirect = useCallback(
