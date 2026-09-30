@@ -42,7 +42,20 @@ export async function login({
 
   if (error) {
     console.error("Login function error:", error);
-    throw new Error("Unable to process login");
+    let errorMessage = "Unable to process login";
+    try {
+      if (error && "context" in error && error.context) {
+        const body = await (error.context as Response).clone().json();
+        if (body?.error && typeof body.error === "string") {
+          errorMessage = body.error;
+        }
+      }
+    } catch {
+      if (error.message && !error.message.includes("non-2xx")) {
+        errorMessage = error.message;
+      }
+    }
+    throw new Error(errorMessage);
   }
 
   if (!data?.session || !data?.user) {
