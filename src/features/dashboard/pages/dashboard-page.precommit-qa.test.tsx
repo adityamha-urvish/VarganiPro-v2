@@ -214,7 +214,7 @@ describe("Pre-Commit Real Interaction QA Suite (Flows A through H)", () => {
   it("Flow A & B: Start Collection never opens a stale previously selected flat", async () => {
     render(<DashboardPage />);
 
-    const startBtn = await screen.findByTestId("volunteer-collect-btn");
+    const startBtn = await screen.findByTestId("home-tile-start-collection");
     expect(startBtn).toBeTruthy();
 
     fireEvent.click(startBtn);
@@ -272,7 +272,7 @@ describe("Pre-Commit Real Interaction QA Suite (Flows A through H)", () => {
 
     render(<DashboardPage />);
 
-    const startBtn = await screen.findByTestId("volunteer-collect-btn");
+    const startBtn = await screen.findByTestId("home-tile-start-collection");
     fireEvent.click(startBtn);
 
     expect(await screen.findByText(/Continue Shivaji Heights/i)).toBeTruthy();
@@ -305,7 +305,7 @@ describe("Pre-Commit Real Interaction QA Suite (Flows A through H)", () => {
   it("Flow D: Mark Pending drawer is accessible", async () => {
     render(<DashboardPage />);
 
-    const startBtn = await screen.findByTestId("volunteer-collect-btn");
+    const startBtn = await screen.findByTestId("home-tile-start-collection");
     fireEvent.click(startBtn);
 
     expect(await screen.findByText(/Continue Shivaji Heights/i)).toBeTruthy();

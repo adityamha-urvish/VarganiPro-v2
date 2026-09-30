@@ -16,6 +16,7 @@ export interface RoleNavigationProps {
   onTabChange: (tab: NavigationTab) => void;
   isAdmin: boolean;
   pendingSyncCount?: number;
+  onShowMandalQr?: () => void;
 }
 
 export function RoleNavigation({
@@ -23,6 +24,7 @@ export function RoleNavigation({
   onTabChange,
   isAdmin,
   pendingSyncCount = 0,
+  onShowMandalQr,
 }: RoleNavigationProps) {
   const [showMoreDrawer, setShowMoreDrawer] = useState(false);
 
@@ -32,6 +34,7 @@ export function RoleNavigation({
     { id: "history", label: "Receipts", subLabel: "Receipts", icon: "📜" },
     { id: "expenses", label: "Expenses", subLabel: "Festival Expenses", icon: "💸" },
     { id: "handovers", label: "Handover", subLabel: "Handover", icon: "🤝" },
+    { id: "more", label: "More", subLabel: "Settings & QR", icon: "⚙️" },
   ];
 
   const adminDesktopTabs: Array<{ id: NavigationTab; label: string; subLabel: string; icon: string }> = [
@@ -57,15 +60,17 @@ export function RoleNavigation({
   ];
 
   // Secondary items in the More Drawer
-  const adminMoreItems: Array<{ id: NavigationTab; label: string; description: string; icon: string }> = [
+  const adminMoreItems: Array<{ id: NavigationTab | "mandalQr"; label: string; description: string; icon: string }> = [
     { id: "receiptBooks", label: "Receipt Books", description: "Manage book inventory & assignments", icon: "📚" },
     { id: "volunteers", label: "Volunteers", description: "Team members, PINs & permissions", icon: "👥" },
     { id: "handovers", label: "Cash Handovers", description: "Review and approve volunteer cash deposits", icon: "🤝" },
+    { id: "mandalQr", label: "Mandal QR", description: "Show & configure Mandal UPI QR code", icon: "📲" },
     { id: "more", label: "Reports & Analytics", description: "Campaign summaries, export & Pavti design", icon: "📊" },
   ];
 
-  const volunteerMoreItems: Array<{ id: NavigationTab; label: string; description: string; icon: string }> = [
+  const volunteerMoreItems: Array<{ id: NavigationTab | "mandalQr"; label: string; description: string; icon: string }> = [
     { id: "handovers", label: "Cash Handover", description: "Submit collected cash to Mandal Secretary", icon: "🤝" },
+    { id: "mandalQr", label: "Mandal QR", description: "Show Mandal UPI QR code for donors", icon: "📲" },
     { id: "more", label: "App Settings & Sync", description: "Offline database state and app details", icon: "⚙️" },
   ];
 
@@ -95,9 +100,13 @@ export function RoleNavigation({
     }
   };
 
-  const handleDrawerItemSelect = (tabId: NavigationTab) => {
+  const handleDrawerItemSelect = (tabId: NavigationTab | "mandalQr") => {
     setShowMoreDrawer(false);
-    onTabChange(tabId);
+    if (tabId === "mandalQr") {
+      onShowMandalQr?.();
+    } else {
+      onTabChange(tabId);
+    }
   };
 
   return (

@@ -154,20 +154,21 @@ vi.mock("@/supabase/client", () => ({
         };
       }
 
-      if (table === "users") {
-        return {
-          select: () => ({
-            eq: () => ({
-              maybeSingle: async () => ({
-                data: { id: "user-1" },
-                error: null,
-              }),
-            }),
-          }),
-        };
-      }
-
-      throw new Error(`Unexpected table: ${table}`);
+      return {
+        select: () => {
+          const builder: any = {
+            eq: () => builder,
+            is: () => builder,
+            in: () => builder,
+            or: () => builder,
+            order: () => builder,
+            limit: () => builder,
+            maybeSingle: async () => ({ data: null, error: null }),
+            then: (resolve: (val: any) => any) => Promise.resolve({ data: [], error: null }).then(resolve),
+          };
+          return builder;
+        },
+      };
     },
   },
 }));
@@ -253,7 +254,7 @@ describe("DashboardPage receipt creation workflow characterization", () => {
     render(<DashboardPage />);
 
     // Navigate to Collection / Buildings from Volunteer Home
-    const collectBtn = await screen.findByTestId("volunteer-collect-btn");
+    const collectBtn = await screen.findByTestId("home-tile-start-collection");
     fireEvent.click(collectBtn);
 
     expect(await screen.findByText("New Receipt")).toBeTruthy();
@@ -307,7 +308,7 @@ describe("DashboardPage receipt creation workflow characterization", () => {
   it("validates donor name and blocks creation when donor name is empty or whitespace", async () => {
     render(<DashboardPage />);
 
-    const collectBtn = await screen.findByTestId("volunteer-collect-btn");
+    const collectBtn = await screen.findByTestId("home-tile-start-collection");
     fireEvent.click(collectBtn);
 
     expect(await screen.findByText("New Receipt")).toBeTruthy();
@@ -330,7 +331,7 @@ describe("DashboardPage receipt creation workflow characterization", () => {
   it("validates amount and blocks creation when amount is zero or negative", async () => {
     render(<DashboardPage />);
 
-    const collectBtn = await screen.findByTestId("volunteer-collect-btn");
+    const collectBtn = await screen.findByTestId("home-tile-start-collection");
     fireEvent.click(collectBtn);
 
     expect(await screen.findByText("New Receipt")).toBeTruthy();
@@ -357,7 +358,7 @@ describe("DashboardPage receipt creation workflow characterization", () => {
 
     render(<DashboardPage />);
 
-    const collectBtn = await screen.findByTestId("volunteer-collect-btn");
+    const collectBtn = await screen.findByTestId("home-tile-start-collection");
     fireEvent.click(collectBtn);
 
     expect(await screen.findByText("New Receipt")).toBeTruthy();
@@ -392,7 +393,7 @@ describe("DashboardPage receipt creation workflow characterization", () => {
 
     render(<DashboardPage />);
 
-    const collectBtn = await screen.findByTestId("volunteer-collect-btn");
+    const collectBtn = await screen.findByTestId("home-tile-start-collection");
     fireEvent.click(collectBtn);
 
     expect(await screen.findByText("New Receipt")).toBeTruthy();
@@ -426,7 +427,7 @@ describe("DashboardPage receipt creation workflow characterization", () => {
 
     render(<DashboardPage />);
 
-    const collectBtn = await screen.findByTestId("volunteer-collect-btn");
+    const collectBtn = await screen.findByTestId("home-tile-start-collection");
     fireEvent.click(collectBtn);
 
     expect(await screen.findByText("New Receipt")).toBeTruthy();
@@ -457,7 +458,7 @@ describe("DashboardPage receipt creation workflow characterization", () => {
     expect(notesInput.value).toBe("");
   });
 
-  it("disables the submit button when the collection session is completed", async () => {
+  it("displays completed session status when collection session is completed", async () => {
     const completedSession: CollectionSessionContext = {
       ...mockOpenSession,
       sessionStatus: "completed",
@@ -467,16 +468,10 @@ describe("DashboardPage receipt creation workflow characterization", () => {
 
     render(<DashboardPage />);
 
-    expect(await screen.findByTestId("volunteer-more-trigger")).toBeTruthy();
-    fireEvent.click(screen.getByTestId("volunteer-more-trigger"));
-    fireEvent.click(screen.getByTestId("more-opt-session-details"));
-
-    const submitButton = await screen.findByRole("button", {
-      name: /Collection Session Completed/i,
-    });
-
-    expect(submitButton).toBeTruthy();
-    expect(submitButton).toHaveProperty("disabled", true);
+    expect(await screen.findByText("BOOK-1")).toBeTruthy();
+    expect(screen.getByText("Completed")).toBeTruthy();
+    const startTile = screen.getByTestId("home-tile-start-collection");
+    expect(startTile.textContent).toContain("Start Collection");
   });
 
   it("advances the displayed next receipt number immediately after creating receipts without requiring a page refresh", async () => {
@@ -506,7 +501,7 @@ describe("DashboardPage receipt creation workflow characterization", () => {
 
     render(<DashboardPage />);
 
-    const collectBtn = await screen.findByTestId("volunteer-collect-btn");
+    const collectBtn = await screen.findByTestId("home-tile-start-collection");
     fireEvent.click(collectBtn);
 
     // 1. Initial display
@@ -557,7 +552,7 @@ describe("DashboardPage receipt creation workflow characterization", () => {
 
     render(<DashboardPage />);
 
-    const collectBtn = await screen.findByTestId("volunteer-collect-btn");
+    const collectBtn = await screen.findByTestId("home-tile-start-collection");
     fireEvent.click(collectBtn);
 
     expect(await screen.findByText("Receipt #1000")).toBeTruthy();

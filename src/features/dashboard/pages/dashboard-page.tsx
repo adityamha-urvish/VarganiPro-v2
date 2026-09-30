@@ -25,7 +25,6 @@ import { MandalHomeScreen } from "../components/mandal-home-screen";
 import { BuildingsCollectionScreen } from "../components/buildings-collection-screen";
 import { RoleNavigation, type NavigationTab } from "@/app/layouts/RoleNavigation";
 import { VolunteerManagementPanel } from "@/features/admin/volunteers/components/volunteer-management-panel";
-import { BuildingsManagementPanel } from "@/features/admin/master-data/components/buildings-management-panel";
 import { ReceiptBooksManagementPanel } from "@/features/admin/master-data/components/receipt-books-management-panel";
 import { createBuilding } from "@/features/admin/master-data/services/master-data.service";
 import { VolunteerFinancialLedger } from "@/features/analytics/components/volunteer-financial-ledger";
@@ -577,6 +576,7 @@ export function DashboardPage() {
         onTabChange={handleTabChange}
         isAdmin={isAdmin}
         pendingSyncCount={pendingReceipts.length}
+        onShowMandalQr={() => setIsMandalQrOpen(true)}
       />
 
       {/* -------------------------------------------------------------
@@ -647,6 +647,8 @@ export function DashboardPage() {
                 isLive={true}
                 isAdmin={isAdmin}
                 hasActiveSession={Boolean(session && session.sessionStatus === "open")}
+                sessionReceiptCount={issuedReceipts.length}
+                sessionTotalAmount={totalAmount}
                 pendingSyncCount={pendingReceipts.length}
                 onStartCollection={() => {
                   setIsFastReceiptOpen(false);
@@ -671,6 +673,10 @@ export function DashboardPage() {
                   handleTabChange("receiptBooks");
                 }}
                 onNavigateToSessionDetails={() => {
+                  nav.openCollectMode();
+                  setVolunteerSubView("session");
+                }}
+                onNavigateToCloseSession={() => {
                   nav.openCollectMode();
                   setVolunteerSubView("session");
                 }}
@@ -1303,7 +1309,18 @@ export function DashboardPage() {
               </p>
               <button
                 type="button"
-                onClick={() => handleTabChange("collection")}
+                data-testid="handover-go-to-collection-btn"
+                onClick={() => {
+                  if (session && session.sessionStatus === "open") {
+                    handleTabChange("collection");
+                    nav.openCollectMode(selectedBuilding?.buildingId || null);
+                    if (!selectedBuilding) {
+                      setVolunteerSubView("buildings");
+                    }
+                  } else {
+                    handleTabChange("collection");
+                  }
+                }}
                 className="inline-flex items-center gap-1 text-sm font-bold text-primary hover:underline cursor-pointer pt-2"
               >
                 <span>⚡ Go to Collection</span>
@@ -1393,71 +1410,11 @@ export function DashboardPage() {
       )}
 
       {/* -------------------------------------------------------------
-          TAB: MASTER DATA (BUILDINGS, FLATS & SHOPS)
+          TAB: MASTER DATA (BUILDINGS, FLATS & SHOPS - UNIFIED)
       -------------------------------------------------------------- */}
       {activeTab === "masterData" && (
         <div className="animate-in fade-in">
-          {isAdmin && organizationId ? (
-            <BuildingsManagementPanel
-              organizationId={organizationId}
-              eventId={effectiveEventId}
-              onStartCollection={(b, p) => {
-                if (b) {
-                  nav.openCollectMode(b.id);
-                  handleSelectBuilding({
-                    buildingId: b.id,
-                    eventId: session?.eventId || "",
-                    organizationId,
-                    buildingName: b.name,
-                    code: b.code || null,
-                    wing: b.wing || null,
-                    areaName: b.areaName || null,
-                    totalUnits: 0,
-                    collectedCount: 0,
-                    pendingCount: 0,
-                    refusedCount: 0,
-                    notVisitedCount: 0,
-                    remainingCount: 0,
-                    totalAmountCollected: 0,
-                    lastActivityAt: null,
-                    cachedAt: new Date().toISOString(),
-                  });
-                } else {
-                  setSelectedBuilding(null);
-                  nav.openCollectMode(null);
-                }
-                if (p) {
-                  handleSelectProperty({
-                    propertyId: p.id,
-                    buildingId: b?.id || "",
-                    eventId: session?.eventId || "",
-                    organizationId,
-                    propertyType: p.propertyType || (p.shopName ? "commercial" : "flat"),
-                    unitNumber: p.unitNumber || p.flatNumber || p.shopName || "",
-                    flatNumber: p.flatNumber || p.unitNumber || "",
-                    floorNumber: p.floorNumber ?? null,
-                    shopName: p.shopName || null,
-                    ownerName: p.ownerName ?? null,
-                    contactMobile: p.contactMobile ?? null,
-                    status: "not_visited",
-                    receiptCount: 0,
-                    totalCollectedAmount: 0,
-                    latestReceiptNumber: null,
-                    lastReceiptAt: null,
-                    pendingReason: null,
-                    followUpTime: null,
-                    followUpNotes: null,
-                    followUpAt: null,
-                    cachedAt: new Date().toISOString(),
-                  });
-                }
-              }}
-              onStartGeneralReceipt={() => {
-                setSelectedBuilding(null);
-                nav.openCollectMode(null);
-              }}
-            />
-          ) : !selectedBuilding ? (
+          {!selectedBuilding ? (
             <BuildingsCollectionScreen
               buildings={buildings}
               loading={loadingBuildings}
@@ -1489,7 +1446,6 @@ export function DashboardPage() {
                   flatNumber: null,
                   floorNumber: null,
                   shopName: shop.shopName ?? null,
-
                   ownerName: shop.ownerName ?? null,
                   contactMobile: shop.contactMobile ?? null,
                   status: (shop.status as any) || "not_visited",
@@ -1505,10 +1461,9 @@ export function DashboardPage() {
                 });
               }}
               onAddShop={addShopDirect}
-              isAdmin={false}
+              isAdmin={isAdmin}
             />
           ) : (
-
             <div className="space-y-4 animate-in fade-in">
               <BuildingFlatGrid
                 building={selectedBuilding}
@@ -1567,6 +1522,30 @@ export function DashboardPage() {
                   {pendingReceipts.length === 0 ? "✓ All local receipts synchronized" : `⚠️ ${pendingReceipts.length} pending local receipts`}
                 </span>
               </div>
+            </div>
+
+            {/* Quick Secondary Actions in More */}
+            <div className="pt-2 flex flex-wrap gap-2">
+              <button
+                type="button"
+                data-testid="more-btn-mandal-qr"
+                onClick={() => setIsMandalQrOpen(true)}
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs transition-colors cursor-pointer shadow-2xs"
+              >
+                <span>📲</span>
+                <span>Mandal UPI QR Code</span>
+              </button>
+              {!isAdmin && (
+                <button
+                  type="button"
+                  data-testid="more-btn-handover"
+                  onClick={() => handleTabChange("handovers")}
+                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-purple-100 hover:bg-purple-200 text-purple-950 border border-purple-200 font-bold text-xs transition-colors cursor-pointer shadow-2xs"
+                >
+                  <span>🤝</span>
+                  <span>Cash Handover</span>
+                </button>
+              )}
             </div>
           </div>
 

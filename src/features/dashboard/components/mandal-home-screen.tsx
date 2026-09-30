@@ -35,6 +35,9 @@ export interface MandalHomeScreenProps {
   volunteerMandalMetrics?: MetricsBreakdown;
   totalExpenses?: number;
   todayExpenses?: number;
+  // Session aggregates for active contextual banner
+  sessionReceiptCount?: number;
+  sessionTotalAmount?: number;
   onStartCollection: () => void;
   onStartGeneralReceipt?: () => void;
   onNavigateTab: (tab: NavigationTab) => void;
@@ -42,6 +45,7 @@ export interface MandalHomeScreenProps {
   onNavigateToHandover?: () => void;
   onNavigateToBooks?: () => void;
   onNavigateToSessionDetails?: () => void;
+  onNavigateToCloseSession?: () => void;
   onChangeBuilding?: () => void;
   onShowMandalQr?: () => void;
 }
@@ -70,17 +74,19 @@ export function MandalHomeScreen({
   volunteerMandalMetrics,
   totalExpenses = 0,
   todayExpenses = 0,
+  sessionReceiptCount,
+  sessionTotalAmount,
   onStartCollection,
-  onStartGeneralReceipt,
+  onStartGeneralReceipt: _onStartGeneralReceipt,
   onNavigateTab,
-  onNavigateToHistory,
-  onNavigateToHandover,
-  onNavigateToBooks,
+  onNavigateToHistory: _onNavigateToHistory,
+  onNavigateToHandover: _onNavigateToHandover,
+  onNavigateToBooks: _onNavigateToBooks,
   onNavigateToSessionDetails,
-  onChangeBuilding,
-  onShowMandalQr,
+  onNavigateToCloseSession,
+  onChangeBuilding: _onChangeBuilding,
+  onShowMandalQr: _onShowMandalQr,
 }: MandalHomeScreenProps) {
-  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [activeSlide, setActiveSlide] = useState<0 | 1>(0);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
 
@@ -200,21 +206,6 @@ export function MandalHomeScreen({
             <span>🪔</span>
             <span>{eventCode}</span>
           </span>
-
-          {/* Compact More '⋯' Control */}
-          <button
-            type="button"
-            data-testid="volunteer-more-trigger"
-            onClick={() => setShowMoreMenu(true)}
-            className="w-8 h-8 rounded-full bg-white border border-amber-900/15 shadow-2xs flex items-center justify-center text-slate-700 hover:text-slate-950 hover:bg-slate-50 transition-all cursor-pointer relative"
-            aria-label="Options"
-            title="Options"
-          >
-            <span className="text-base font-black leading-none">⋯</span>
-            {pendingSyncCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-amber-500 border border-white" />
-            )}
-          </button>
         </div>
       </div>
 
@@ -386,7 +377,48 @@ export function MandalHomeScreen({
       </div>
 
       {/* -------------------------------------------------------------
-          3. QUICK ACTIONS GRID (PASTEL TILES)
+          CONTEXTUAL ACTIVE SESSION STRIP (LIGHTWEIGHT & THUMB-FRIENDLY)
+      -------------------------------------------------------------- */}
+      {hasActiveSession && (
+        <div
+          data-testid="active-session-banner"
+          className="rounded-2xl bg-emerald-950 text-white border border-emerald-500/40 px-3.5 py-2.5 shadow-sm flex items-center justify-between gap-2.5 animate-in fade-in"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+            <div className="min-w-0">
+              <span className="text-xs font-black text-emerald-300 block truncate">
+                🟢 Collection Active
+              </span>
+              <span className="text-[11px] font-bold text-slate-200 block truncate font-mono">
+                {sessionReceiptCount ?? receiptCount} {((sessionReceiptCount ?? receiptCount) === 1) ? "receipt" : "receipts"} · ₹{(sessionTotalAmount ?? totalAmount).toLocaleString("en-IN")}
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              data-testid="banner-btn-continue-session"
+              onClick={onStartCollection}
+              className="px-2.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs transition-colors cursor-pointer shadow-2xs flex items-center gap-0.5"
+            >
+              <span>Continue</span>
+              <span>→</span>
+            </button>
+            <button
+              type="button"
+              data-testid="banner-btn-end-session"
+              onClick={onNavigateToCloseSession || onNavigateToSessionDetails}
+              className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-emerald-200 hover:text-white border border-emerald-500/30 font-bold text-xs transition-colors cursor-pointer"
+            >
+              End Session
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* -------------------------------------------------------------
+          3. QUICK ACTIONS GRID (5 CLEAN STATE-AWARE TILES)
       -------------------------------------------------------------- */}
       <div className="space-y-2">
         <div className="flex items-center justify-between px-1">
@@ -400,54 +432,39 @@ export function MandalHomeScreen({
           )}
         </div>
 
-        <div className={`grid gap-2.5 ${isAdmin ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-2"}`}>
-          {/* VOLUNTEER SPECIFIC ACTION 1: Start Collection */}
-          {!isAdmin && (
-            <button
-              type="button"
-              data-testid="home-tile-start-collection"
-              onClick={onStartCollection}
-              className="flex flex-col justify-between p-3.5 rounded-2xl bg-rose-100/90 hover:bg-rose-100 border border-rose-200/90 text-left transition-all active:scale-[0.98] shadow-2xs hover:shadow-xs cursor-pointer group min-h-[92px]"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-2xl group-hover:scale-110 transition-transform">⚡</span>
-                <span className="text-rose-400 group-hover:text-rose-700 text-sm font-black">→</span>
-              </div>
-              <div>
-                <span className="block font-black text-sm text-rose-950 leading-tight">
-                  Start Collection
-                </span>
-                <span className="text-[11px] font-semibold text-rose-800/80">
-                  New receipt session
-                </span>
-              </div>
-            </button>
-          )}
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+          {/* TILE 1: State-Aware Collection Tile */}
+          <button
+            type="button"
+            data-testid="home-tile-start-collection"
+            onClick={onStartCollection}
+            className={`flex flex-col justify-between p-3.5 rounded-2xl border text-left transition-all active:scale-[0.98] shadow-2xs hover:shadow-xs cursor-pointer group min-h-[92px] ${
+              hasActiveSession
+                ? "bg-emerald-100/90 hover:bg-emerald-100 border-emerald-300 text-emerald-950"
+                : "bg-rose-100/90 hover:bg-rose-100 border-rose-200/90 text-rose-950"
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-2xl group-hover:scale-110 transition-transform">
+                {hasActiveSession ? "🟢" : "⚡"}
+              </span>
+              <span className={`text-sm font-black ${hasActiveSession ? "text-emerald-700" : "text-rose-400 group-hover:text-rose-700"}`}>
+                →
+              </span>
+            </div>
+            <div>
+              <span className="block font-black text-sm leading-tight">
+                {hasActiveSession ? "Collection Active" : "Start Collection"}
+              </span>
+              <span className={`text-[11px] font-semibold ${hasActiveSession ? "text-emerald-800" : "text-rose-800/80"}`}>
+                {hasActiveSession
+                  ? `${sessionReceiptCount ?? receiptCount} receipts · ₹${(sessionTotalAmount ?? totalAmount).toLocaleString("en-IN")}`
+                  : "New receipt session"}
+              </span>
+            </div>
+          </button>
 
-          {/* ADMIN ACTION 1: Volunteer Fleet */}
-          {isAdmin && (
-            <button
-              type="button"
-              data-testid="home-tile-volunteers"
-              onClick={() => onNavigateTab("volunteers")}
-              className="flex flex-col justify-between p-3.5 rounded-2xl bg-lime-100/90 hover:bg-lime-100 border border-lime-200/90 text-left transition-all active:scale-[0.98] shadow-2xs hover:shadow-xs cursor-pointer group min-h-[92px]"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-2xl group-hover:scale-110 transition-transform">👥</span>
-                <span className="text-lime-500 group-hover:text-lime-700 text-sm font-black">→</span>
-              </div>
-              <div>
-                <span className="block font-black text-sm text-lime-950 leading-tight">
-                  Volunteer Fleet
-                </span>
-                <span className="text-[11px] font-semibold text-lime-800/80">
-                  Team & Access
-                </span>
-              </div>
-            </button>
-          )}
-
-          {/* SHARED ACTION: Buildings / Residential Coverage */}
+          {/* TILE 2: Buildings / Residential Coverage */}
           <button
             type="button"
             data-testid="home-tile-buildings"
@@ -460,41 +477,15 @@ export function MandalHomeScreen({
             </div>
             <div>
               <span className="block font-black text-sm text-cyan-950 leading-tight">
-                {isAdmin ? "Residential Coverage" : "Buildings"}
+                Buildings
               </span>
               <span className="text-[11px] font-semibold text-cyan-800/80">
-                {isAdmin ? "Buildings & Flats" : "Flats & Units"}
+                Buildings & Shops
               </span>
             </div>
           </button>
 
-          {/* ADMIN ACTION: Receipt Books */}
-          {isAdmin && (
-            <button
-              type="button"
-              data-testid="home-tile-books"
-              onClick={() => {
-                if (onNavigateToBooks) onNavigateToBooks();
-                else onNavigateTab("masterData");
-              }}
-              className="flex flex-col justify-between p-3.5 rounded-2xl bg-teal-100/90 hover:bg-teal-100 border border-teal-200/90 text-left transition-all active:scale-[0.98] shadow-2xs hover:shadow-xs cursor-pointer group min-h-[92px]"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-2xl group-hover:scale-110 transition-transform">📚</span>
-                <span className="text-teal-500 group-hover:text-teal-700 text-sm font-black">→</span>
-              </div>
-              <div>
-                <span className="block font-black text-sm text-teal-950 leading-tight">
-                  Receipt Books
-                </span>
-                <span className="text-[11px] font-semibold text-teal-800/80">
-                  Paper Inventory & Assignment
-                </span>
-              </div>
-            </button>
-          )}
-
-          {/* SHARED ACTION: Recent Receipts */}
+          {/* TILE 3: Recent Receipts */}
           <button
             type="button"
             data-testid="home-tile-receipts"
@@ -515,7 +506,7 @@ export function MandalHomeScreen({
             </div>
           </button>
 
-          {/* SHARED ACTION: Handovers */}
+          {/* TILE 4: Handovers */}
           <button
             type="button"
             data-testid="home-tile-handovers"
@@ -536,7 +527,7 @@ export function MandalHomeScreen({
             </div>
           </button>
 
-          {/* SHARED ACTION: Expenses */}
+          {/* TILE 5: Expenses */}
           <button
             type="button"
             data-testid="home-tile-expenses"
@@ -556,52 +547,6 @@ export function MandalHomeScreen({
               </span>
             </div>
           </button>
-
-          {/* SHARED ACTION: Mandal QR */}
-          {onShowMandalQr && (
-            <button
-              type="button"
-              data-testid="home-tile-mandal-qr"
-              onClick={onShowMandalQr}
-              className="flex flex-col justify-between p-3.5 rounded-2xl bg-amber-100/90 hover:bg-amber-100 border border-amber-200/90 text-left transition-all active:scale-[0.98] shadow-2xs hover:shadow-xs cursor-pointer group min-h-[92px]"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-2xl group-hover:scale-110 transition-transform">📲</span>
-                <span className="text-amber-500 group-hover:text-amber-700 text-sm font-black">→</span>
-              </div>
-              <div>
-                <span className="block font-black text-sm text-amber-950 leading-tight">
-                  Mandal QR
-                </span>
-                <span className="text-[11px] font-semibold text-amber-800/80">
-                  Scan to Pay UPI
-                </span>
-              </div>
-            </button>
-          )}
-
-          {/* ADMIN ACTION: Reports & More */}
-          {isAdmin && (
-            <button
-              type="button"
-              data-testid="home-tile-reports"
-              onClick={() => onNavigateTab("more")}
-              className="flex flex-col justify-between p-3.5 rounded-2xl bg-blue-100/90 hover:bg-blue-100 border border-blue-200/90 text-left transition-all active:scale-[0.98] shadow-2xs hover:shadow-xs cursor-pointer group min-h-[92px]"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-2xl group-hover:scale-110 transition-transform">📊</span>
-                <span className="text-blue-500 group-hover:text-blue-700 text-sm font-black">→</span>
-              </div>
-              <div>
-                <span className="block font-black text-sm text-blue-950 leading-tight">
-                  Reports & More
-                </span>
-                <span className="text-[11px] font-semibold text-blue-800/80">
-                  Analytics & Export
-                </span>
-              </div>
-            </button>
-          )}
         </div>
       </div>
 
@@ -631,159 +576,6 @@ export function MandalHomeScreen({
           />
         </div>
       </div>
-
-      {/* -------------------------------------------------------------
-          5. DOMINANT PRIMARY CTA
-      -------------------------------------------------------------- */}
-      <div className="pt-1">
-        {isAdmin ? (
-          <button
-            type="button"
-            data-testid="secretary-new-receipt-btn"
-            onClick={onStartGeneralReceipt ? onStartGeneralReceipt : onStartCollection}
-            className="w-full h-14 rounded-2xl bg-gradient-to-r from-[#800020] via-[#A82400] to-[#E05300] hover:from-[#6B001B] hover:to-[#C74900] text-white font-extrabold text-base sm:text-lg tracking-tight shadow-lg shadow-orange-950/20 active:scale-[0.99] transition-all cursor-pointer flex items-center justify-center gap-2"
-          >
-            <span>➕</span>
-            <span>+ New Receipt</span>
-            <span className="text-lg leading-none">→</span>
-          </button>
-        ) : (
-          <button
-            type="button"
-            data-testid={hasActiveSession ? "volunteer-collect-btn" : "volunteer-start-btn"}
-            onClick={onStartCollection}
-            className="w-full h-14 rounded-2xl bg-gradient-to-r from-[#800020] via-[#A82400] to-[#E05300] hover:from-[#6B001B] hover:to-[#C74900] text-white font-extrabold text-base sm:text-lg tracking-tight shadow-lg shadow-orange-950/20 active:scale-[0.99] transition-all cursor-pointer flex items-center justify-center gap-2"
-          >
-            <span>⚡</span>
-            <span>
-              {hasActiveSession ? "Collect" : "Start Collection"}
-            </span>
-            <span className="text-lg leading-none">→</span>
-          </button>
-        )}
-
-        <div className="flex items-center justify-between text-[11px] font-medium text-slate-400 px-2 pt-2">
-          <span>🔒 Secure Offline Cash</span>
-          <span>⚡ Instant Receipts</span>
-        </div>
-      </div>
-
-      {/* -------------------------------------------------------------
-          6. MORE OPTIONS MODAL / SHEET
-      -------------------------------------------------------------- */}
-      {showMoreMenu && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-950/60 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in">
-          <div
-            className="w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-white p-6 shadow-2xl space-y-4 border border-slate-200 animate-in slide-in-from-bottom-4 duration-200"
-            style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
-          >
-            {/* Sheet Header */}
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <h3 className="text-base font-black text-slate-900">
-                Options
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowMoreMenu(false)}
-                className="h-8 w-8 rounded-full bg-slate-100 text-slate-500 hover:text-slate-950 flex items-center justify-center text-sm font-bold cursor-pointer"
-                aria-label="Close"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Menu Options List */}
-            <div className="space-y-2">
-              <button
-                type="button"
-                data-testid="more-opt-buildings"
-                onClick={() => {
-                  setShowMoreMenu(false);
-                  if (onChangeBuilding) onChangeBuilding();
-                  else onNavigateTab("masterData");
-                }}
-                className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 hover:bg-slate-100 text-slate-900 font-bold text-sm transition-colors cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-lg">🏢</span>
-                  <div className="text-left">
-                    <span className="block font-bold">Buildings & Flats</span>
-                    <span className="text-[11px] font-normal text-slate-500">Corridors & Units</span>
-                  </div>
-                </div>
-                <span className="text-slate-400">→</span>
-              </button>
-
-              <button
-                type="button"
-                data-testid="more-opt-history"
-                onClick={() => {
-                  setShowMoreMenu(false);
-                  if (onNavigateToHistory) onNavigateToHistory();
-                  else onNavigateTab("history");
-                }}
-                className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 hover:bg-slate-100 text-slate-900 font-bold text-sm transition-colors cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-lg">📜</span>
-                  <div className="text-left">
-                    <div className="flex items-center gap-2">
-                      <span className="block font-bold">Receipt History</span>
-                      {pendingSyncCount > 0 && (
-                        <span className="rounded-full bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.2">
-                          {pendingSyncCount}
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-[11px] font-normal text-slate-500">View & Reprints</span>
-                  </div>
-                </div>
-                <span className="text-slate-400">→</span>
-              </button>
-
-              <button
-                type="button"
-                data-testid="more-opt-handover"
-                onClick={() => {
-                  setShowMoreMenu(false);
-                  if (onNavigateToHandover) onNavigateToHandover();
-                  else onNavigateTab("handovers");
-                }}
-                className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 hover:bg-slate-100 text-slate-900 font-bold text-sm transition-colors cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-lg">🤝</span>
-                  <div className="text-left">
-                    <span className="block font-bold">Session Handover</span>
-                    <span className="text-[11px] font-normal text-slate-500">Submit cash & closing</span>
-                  </div>
-                </div>
-                <span className="text-slate-400">→</span>
-              </button>
-
-              <button
-                type="button"
-                data-testid="more-opt-session-details"
-                onClick={() => {
-                  setShowMoreMenu(false);
-                  if (onNavigateToSessionDetails) onNavigateToSessionDetails();
-                  else onNavigateTab("collection");
-                }}
-                className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 hover:bg-slate-100 text-slate-900 font-bold text-sm transition-colors cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-lg">⚙️</span>
-                  <div className="text-left">
-                    <span className="block font-bold">Session Details & Close</span>
-                    <span className="text-[11px] font-normal text-slate-500">Summary & Close</span>
-                  </div>
-                </div>
-                <span className="text-slate-400">→</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -154,7 +154,19 @@ vi.mock("@/supabase/client", () => ({
         };
       }
 
-      throw new Error(`Unexpected table: ${table}`);
+      return {
+        select: () => {
+          const builder: any = {
+            eq: () => builder,
+            is: () => builder,
+            order: () => builder,
+            limit: () => builder,
+            maybeSingle: async () => ({ data: null, error: null }),
+            then: (resolve: (val: any) => any) => Promise.resolve({ data: [], error: null }).then(resolve),
+          };
+          return builder;
+        },
+      };
     },
   },
 }));
@@ -223,10 +235,9 @@ describe("DashboardPage rejected handover resubmission characterization", () => 
   it("restores rejected handover data, allows editing, and resubmits to submit_collection_handover", async () => {
     render(<DashboardPage />);
 
-    // Open Handover from Volunteer Home More menu
-    expect(await screen.findByTestId("volunteer-more-trigger")).toBeTruthy();
-    fireEvent.click(screen.getByTestId("volunteer-more-trigger"));
-    fireEvent.click(screen.getByTestId("more-opt-handover"));
+    // Open Handover from Home Quick Actions
+    const handoverTile = await screen.findByTestId("home-tile-handovers");
+    fireEvent.click(handoverTile);
 
     // 1 & 4. Verify completed session is loaded and rejected handover status is displayed
     expect(await screen.findByText(/Session Handover/i)).toBeTruthy();

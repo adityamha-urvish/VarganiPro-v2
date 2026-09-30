@@ -98,20 +98,19 @@ vi.mock("@/supabase/client", () => ({
         };
       }
 
-      if (table === "collection_handovers") {
-        return {
-          select: () => ({
-            eq: () => ({
-              maybeSingle: async () => ({
-                data: null,
-                error: null,
-              }),
-            }),
-          }),
-        };
-      }
-
-      throw new Error(`Unexpected table: ${table}`);
+      return {
+        select: () => {
+          const builder: any = {
+            eq: () => builder,
+            is: () => builder,
+            order: () => builder,
+            limit: () => builder,
+            maybeSingle: async () => ({ data: null, error: null }),
+            then: (resolve: (val: any) => any) => Promise.resolve({ data: [], error: null }).then(resolve),
+          };
+          return builder;
+        },
+      };
     },
   },
 }));
@@ -200,9 +199,8 @@ describe("DashboardPage close-session characterization", () => {
 
     render(<DashboardPage />);
 
-    expect(await screen.findByTestId("volunteer-more-trigger")).toBeTruthy();
-    fireEvent.click(screen.getByTestId("volunteer-more-trigger"));
-    fireEvent.click(screen.getByTestId("more-opt-session-details"));
+    const endSessionBtn = await screen.findByTestId("banner-btn-end-session");
+    fireEvent.click(endSessionBtn);
 
     return screen.findByRole("button", {
       name: "Close Collection Session",

@@ -223,7 +223,7 @@ describe("P1 Navigation Architecture & Deep Linking Unit Tests", () => {
     render(<DashboardPage />);
 
     expect(await screen.findByText(/Namaste/i)).toBeTruthy();
-    expect(screen.getByTestId("secretary-new-receipt-btn")).toBeTruthy();
+    expect(screen.getByTestId("home-tile-start-collection")).toBeTruthy();
     expect(screen.getByTestId("nav-tab-collection")).toBeTruthy();
   });
 
@@ -266,7 +266,7 @@ describe("P1 Navigation Architecture & Deep Linking Unit Tests", () => {
   it("Test 5 — Admin Collection Mode enters ?mode=collect and back button resets to home", async () => {
     render(<DashboardPage />);
 
-    const newReceiptBtn = await screen.findByTestId("secretary-new-receipt-btn");
+    const newReceiptBtn = await screen.findByTestId("home-tile-start-collection");
     fireEvent.click(newReceiptBtn);
 
     expect(window.location.search).toContain("mode=collect");
@@ -277,7 +277,7 @@ describe("P1 Navigation Architecture & Deep Linking Unit Tests", () => {
     fireEvent.click(backBtn);
 
     expect(window.location.search).toBe("");
-    expect(screen.getByTestId("secretary-new-receipt-btn")).toBeTruthy();
+    expect(screen.getByTestId("home-tile-start-collection")).toBeTruthy();
   });
 
   it("Test 6 — AppLayout shell architecture has 100dvh flex-col and overflow-y-auto scroll container", () => {

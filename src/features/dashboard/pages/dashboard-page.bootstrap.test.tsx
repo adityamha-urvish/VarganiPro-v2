@@ -284,9 +284,19 @@ describe("DashboardPage Bootstrap & Rehydration Characterization", () => {
       }
 
       return {
-        select: vi.fn(() => ({
-          eq: vi.fn(async () => ({ data: [], error: null })),
-        })),
+        select: vi.fn(() => {
+          const builder: any = {
+            eq: vi.fn(() => builder),
+            is: vi.fn(() => builder),
+            in: vi.fn(() => builder),
+            or: vi.fn(() => builder),
+            order: vi.fn(() => builder),
+            limit: vi.fn(() => builder),
+            maybeSingle: vi.fn(async () => ({ data: null, error: null })),
+            then: (resolve: (val: any) => any) => Promise.resolve({ data: [], error: null }).then(resolve),
+          };
+          return builder;
+        }),
       };
     });
   });
@@ -325,10 +335,10 @@ describe("DashboardPage Bootstrap & Rehydration Characterization", () => {
     // Verifies receipt history hydration
     expect(getLocalReceiptsMock).toHaveBeenCalledWith("session-open-1");
 
-    // Verifies Volunteer Home is present for open session
-    const collectBtn = screen.getByTestId("volunteer-collect-btn");
-    expect(collectBtn).toBeTruthy();
-    expect(collectBtn.textContent).toContain("Collect");
+    // Verifies Volunteer Home is present for open session with state-aware collection tile
+    const collectTile = screen.getByTestId("home-tile-start-collection");
+    expect(collectTile).toBeTruthy();
+    expect(collectTile.textContent).toContain("Collection Active");
 
     // Verifies admin panel is NOT rendered for volunteer
     expect(screen.queryByText("Collection Handover Verification")).toBeNull();
@@ -342,7 +352,7 @@ describe("DashboardPage Bootstrap & Rehydration Characterization", () => {
 
     // Renders completed session summary on Volunteer Home State A
     expect(await screen.findByText("BOOK-01")).toBeTruthy();
-    expect(screen.getByTestId("volunteer-start-btn")).toBeTruthy();
+    expect(screen.getByTestId("home-tile-start-collection")).toBeTruthy();
     expect(screen.getAllByText(/Start Collection/i).length).toBeGreaterThan(0);
   });
 
@@ -527,17 +537,27 @@ describe("DashboardPage Bootstrap & Rehydration Characterization", () => {
       }
 
       return {
-        select: vi.fn(() => ({
-          eq: vi.fn(async () => ({ data: [], error: null })),
-        })),
+        select: vi.fn(() => {
+          const builder: any = {
+            eq: vi.fn(() => builder),
+            is: vi.fn(() => builder),
+            in: vi.fn(() => builder),
+            or: vi.fn(() => builder),
+            order: vi.fn(() => builder),
+            limit: vi.fn(() => builder),
+            maybeSingle: vi.fn(async () => ({ data: null, error: null })),
+            then: (resolve: (val: any) => any) => Promise.resolve({ data: [], error: null }).then(resolve),
+          };
+          return builder;
+        }),
       };
     });
 
     render(<DashboardPage />);
 
-    // Secretary Home renders with primary + New Receipt CTA and Quick Actions
-    expect(await screen.findByTestId("secretary-new-receipt-btn")).toBeTruthy();
-    expect(screen.getByTestId("home-tile-volunteers")).toBeTruthy();
+    // Secretary Home renders with primary Start Collection CTA and Quick Actions
+    expect(await screen.findByTestId("home-tile-start-collection")).toBeTruthy();
+    expect(screen.getByTestId("home-tile-buildings")).toBeTruthy();
     expect(screen.getByTestId("home-tile-handovers")).toBeTruthy();
 
     // Navigate to Handovers tab to verify Handover panel renders
@@ -734,9 +754,19 @@ describe("DashboardPage Bootstrap & Rehydration Characterization", () => {
       }
 
       return {
-        select: vi.fn(() => ({
-          eq: vi.fn(async () => ({ data: [], error: null })),
-        })),
+        select: vi.fn(() => {
+          const builder: any = {
+            eq: vi.fn(() => builder),
+            is: vi.fn(() => builder),
+            in: vi.fn(() => builder),
+            or: vi.fn(() => builder),
+            order: vi.fn(() => builder),
+            limit: vi.fn(() => builder),
+            maybeSingle: vi.fn(async () => ({ data: null, error: null })),
+            then: (resolve: (val: any) => any) => Promise.resolve({ data: [], error: null }).then(resolve),
+          };
+          return builder;
+        }),
       };
     });
 
@@ -748,12 +778,12 @@ describe("DashboardPage Bootstrap & Rehydration Characterization", () => {
     ).toBeNull();
 
     // VolunteerHome State A is rendered with "Start Collection" CTA
-    const startBtn = await screen.findByTestId("volunteer-start-btn");
+    const startBtn = await screen.findByTestId("home-tile-start-collection");
     expect(startBtn).toBeTruthy();
     expect(startBtn.textContent).toContain("Start Collection");
 
-    // More trigger is accessible
-    expect(screen.getByTestId("volunteer-more-trigger")).toBeTruthy();
+    // More navigation is accessible
+    expect(screen.getByTestId("nav-tab-more")).toBeTruthy();
 
     // Today's total is shown as ₹0
     expect(screen.getAllByText("₹0").length).toBeGreaterThan(0);

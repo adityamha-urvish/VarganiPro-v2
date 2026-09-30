@@ -1,4 +1,3 @@
-import { useState } from "react";
 import type { CollectionSessionContext } from "@/features/collection/services/collection-session.service";
 import type { CachedBuildingSummary } from "@/lib/offline/offline-db";
 import type { StartCollectionEvent, StartCollectionBook } from "./start-collection-card";
@@ -39,9 +38,9 @@ export function VolunteerHome({
   pendingSyncCount,
   onOpenCollect,
   onChangeBuilding,
-  onNavigateToHistory,
-  onNavigateToHandover,
-  onNavigateToSessionDetails,
+  onNavigateToHistory: _onNavigateToHistory,
+  onNavigateToHandover: _onNavigateToHandover,
+  onNavigateToSessionDetails: _onNavigateToSessionDetails,
   onStartCollection,
   onBackToHome,
   events = [],
@@ -53,8 +52,6 @@ export function VolunteerHome({
   startSessionLoading = false,
   startSessionError = null,
 }: VolunteerHomeProps) {
-  const [showMoreMenu, setShowMoreMenu] = useState(false);
-
   const isActiveSession = Boolean(session && session.sessionStatus === "open");
 
   // Determine active book for State A display
@@ -200,21 +197,6 @@ export function VolunteerHome({
               )}
             </div>
           )}
-
-          {/* Compact More '⋯' Control */}
-          <button
-            type="button"
-            data-testid="volunteer-more-trigger"
-            onClick={() => setShowMoreMenu(true)}
-            className="w-12 shrink-0 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center justify-center text-slate-700 hover:text-slate-950 hover:bg-slate-50 transition-all cursor-pointer relative"
-            aria-label="Options"
-            title="Options"
-          >
-            <span className="text-lg font-black leading-none">⋯</span>
-            {pendingSyncCount > 0 && (
-              <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-amber-500 border-2 border-white" />
-            )}
-          </button>
         </div>
 
         {/* Start Session Error Alert (if any) */}
@@ -290,119 +272,6 @@ export function VolunteerHome({
           <span>⚡ Instant Receipts</span>
         </div>
       </div>
-
-      {/* -------------------------------------------------------------
-          4. SECONDARY ACTION DRAWER / MORE SHEET (ONE COMPACT TRIGGER)
-      -------------------------------------------------------------- */}
-      {showMoreMenu && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-950/60 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in">
-          <div
-            className="w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-white p-6 shadow-2xl space-y-4 border border-slate-200 animate-in slide-in-from-bottom-4 duration-200"
-            style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
-          >
-            {/* Sheet Header */}
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <h3 className="text-base font-black text-slate-900">
-                Options
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowMoreMenu(false)}
-                className="h-8 w-8 rounded-full bg-slate-100 text-slate-500 hover:text-slate-900 flex items-center justify-center text-sm font-bold cursor-pointer"
-                aria-label="Close"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Menu Options List */}
-            <div className="space-y-2">
-              <button
-                type="button"
-                data-testid="more-opt-buildings"
-                onClick={() => {
-                  setShowMoreMenu(false);
-                  onChangeBuilding();
-                }}
-                className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 hover:bg-slate-100 text-slate-900 font-bold text-sm transition-colors cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-lg">🏢</span>
-                  <div className="text-left">
-                    <span className="block font-bold">Buildings & Flats</span>
-                    <span className="text-[11px] font-normal text-slate-500">Corridors & Units</span>
-                  </div>
-                </div>
-                <span className="text-slate-400">→</span>
-              </button>
-
-              <button
-                type="button"
-                data-testid="more-opt-history"
-                onClick={() => {
-                  setShowMoreMenu(false);
-                  onNavigateToHistory();
-                }}
-                className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 hover:bg-slate-100 text-slate-900 font-bold text-sm transition-colors cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-lg">📜</span>
-                  <div className="text-left">
-                    <div className="flex items-center gap-2">
-                      <span className="block font-bold">Receipt History</span>
-                      {pendingSyncCount > 0 && (
-                        <span className="rounded-full bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.2">
-                          {pendingSyncCount}
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-[11px] font-normal text-slate-500">View & Reprints</span>
-                  </div>
-                </div>
-                <span className="text-slate-400">→</span>
-              </button>
-
-              <button
-                type="button"
-                data-testid="more-opt-handover"
-                onClick={() => {
-                  setShowMoreMenu(false);
-                  onNavigateToHandover();
-                }}
-                className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 hover:bg-slate-100 text-slate-900 font-bold text-sm transition-colors cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-lg">🤝</span>
-                  <div className="text-left">
-                    <span className="block font-bold">Session Handover</span>
-                    <span className="text-[11px] font-normal text-slate-500">Submit cash & closing</span>
-                  </div>
-                </div>
-                <span className="text-slate-400">→</span>
-              </button>
-
-              <button
-                type="button"
-                data-testid="more-opt-session-details"
-                onClick={() => {
-                  setShowMoreMenu(false);
-                  onNavigateToSessionDetails();
-                }}
-                className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 hover:bg-slate-100 text-slate-900 font-bold text-sm transition-colors cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-lg">⚙️</span>
-                  <div className="text-left">
-                    <span className="block font-bold">Session Details & Close</span>
-                    <span className="text-[11px] font-normal text-slate-500">Summary & Close</span>
-                  </div>
-                </div>
-                <span className="text-slate-400">→</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

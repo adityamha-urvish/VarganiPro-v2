@@ -181,7 +181,7 @@ describe("Phase 2I: End-to-End Acceptance QA Test Suite", () => {
     render(<DashboardPage />);
 
     // Navigate to Buildings / Collection from Volunteer Home
-    const collectBtn = await screen.findByTestId("volunteer-collect-btn");
+    const collectBtn = await screen.findByTestId("home-tile-start-collection");
     fireEvent.click(collectBtn);
 
     await waitFor(
@@ -334,7 +334,7 @@ describe("Phase 2I: End-to-End Acceptance QA Test Suite", () => {
     render(<DashboardPage />);
 
     // Navigate to Buildings / Collection from Volunteer Home
-    const collectBtn = await screen.findByTestId("volunteer-collect-btn");
+    const collectBtn = await screen.findByTestId("home-tile-start-collection");
     fireEvent.click(collectBtn);
 
     await waitFor(
@@ -362,7 +362,7 @@ describe("Phase 2I: End-to-End Acceptance QA Test Suite", () => {
     render(<DashboardPage />);
 
     // Navigate to Buildings / Collection from Volunteer Home
-    const collectBtn = await screen.findByTestId("volunteer-collect-btn");
+    const collectBtn = await screen.findByTestId("home-tile-start-collection");
     fireEvent.click(collectBtn);
 
     await waitFor(
@@ -473,7 +473,7 @@ describe("Phase 2I: End-to-End Acceptance QA Test Suite", () => {
     render(<DashboardPage />);
 
     // Navigate to Buildings / Collection from Volunteer Home
-    const collectBtn = await screen.findByTestId("volunteer-collect-btn");
+    const collectBtn = await screen.findByTestId("home-tile-start-collection");
     fireEvent.click(collectBtn);
 
     await waitFor(
