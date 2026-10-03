@@ -393,3 +393,53 @@ export async function loadCurrentCollectionSession(
     return null;
   }
 }
+
+/**
+ * Switches the active receipt book within the current open collection session.
+ * Replaces the checked-out receipt book, updates local session context and
+ * writes the new book state into IndexedDB without closing the collection session.
+ */
+export async function switchSessionReceiptBook(
+  sessionId: string,
+  newReceiptBookId: string
+): Promise<CollectionSessionContext> {
+  const { data, error } = await supabase.rpc("checkout_receipt_book", {
+    p_receipt_book_id: newReceiptBookId,
+    p_collection_session_id: sessionId,
+  });
+
+  if (error) {
+    throw new Error(error.message || "Failed to switch receipt book");
+  }
+
+  if (!data || typeof data !== "object" || !("success" in data) || data.success !== true) {
+    throw new Error("Unexpected response from checkout_receipt_book");
+  }
+
+  const context = await resolveCollectionSession({
+    preferredReceiptBookId: newReceiptBookId,
+    strict: true,
+  });
+
+  if (!context) {
+    throw new Error("Receipt book checked out, but failed to resolve updated session context");
+  }
+
+  const bookState: OfflineBookState = {
+    receiptBookId: context.receiptBookId,
+    organizationId: context.organizationId,
+    eventId: context.eventId,
+    collectionSessionId: context.sessionId,
+    volunteerId: context.volunteerId,
+    bookNumber: context.bookNumber,
+    prefix: context.prefix,
+    startNumber: context.startNumber,
+    endNumber: context.endNumber,
+    nextLocalNumber: context.currentNumber,
+    updatedAt: new Date().toISOString(),
+  };
+
+  await mergeOfflineBookState(bookState);
+
+  return context;
+}

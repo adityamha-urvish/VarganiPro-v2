@@ -4,6 +4,7 @@ import {
   isReceiptPrefixValid,
   resolveFestivalKind,
   getFestivalGreetings,
+  normalizeSearchReceiptToLocalReceipt,
 } from "./receipt-formatter";
 
 describe("Receipt Formatter & Festival Resolver", () => {
@@ -110,6 +111,51 @@ describe("Receipt Formatter & Festival Resolver", () => {
       expect(g.closingGreeting).toBe("आपल्या सहकार्याबद्दल धन्यवाद! 🙏");
       expect(g.mantra).toBeNull();
       expect(g.artworkType).toBe("other");
+    });
+  });
+
+  describe("normalizeSearchReceiptToLocalReceipt", () => {
+    it("safely normalizes snake_case search receipt item to camelCase local receipt format", () => {
+      const searchItem = {
+        id: "rec-123",
+        receipt_number: 104,
+        receipt_prefix: "NU-",
+        amount: 501,
+        payment_mode: "upi",
+        payment_reference: "UPI/123456",
+        donor_name: "Rahul Sharma",
+        donor_mobile: "9820011223",
+        unit_number: "402",
+        building_name: "Gokul Heights",
+        building_wing: "A",
+        property_type: "residential",
+        status: "issued",
+        void_reason: null,
+        voided_at: null,
+        created_at: "2026-10-04T00:00:00.000Z",
+      };
+
+      const normalized = normalizeSearchReceiptToLocalReceipt(searchItem);
+      expect(normalized.receiptNumber).toBe(104);
+      expect(normalized.receiptPrefix).toBe("NU-");
+      expect(normalized.paymentMode).toBe("upi");
+      expect(normalized.donorName).toBe("Rahul Sharma");
+      expect(normalized.donorMobile).toBe("9820011223");
+      expect(normalized.unitNumber).toBe("402");
+      expect(normalized.buildingName).toBe("Gokul Heights");
+      expect(normalized.status).toBe("issued");
+      expect(normalized.amount).toBe(501);
+    });
+
+    it("handles null / undefined / empty input defensively without throwing", () => {
+      const emptyNormalized = normalizeSearchReceiptToLocalReceipt(null);
+      expect(emptyNormalized.receiptNumber).toBe(0);
+      expect(emptyNormalized.paymentMode).toBe("cash");
+      expect(emptyNormalized.donorName).toBe("");
+
+      const partialNormalized = normalizeSearchReceiptToLocalReceipt({});
+      expect(partialNormalized.receiptNumber).toBe(0);
+      expect(partialNormalized.paymentMode).toBe("cash");
     });
   });
 });

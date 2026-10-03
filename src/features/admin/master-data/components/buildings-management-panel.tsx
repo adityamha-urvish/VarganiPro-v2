@@ -9,6 +9,7 @@ import {
   createResidentialFlat,
   fetchStandaloneShops,
   createStandaloneShop,
+  updateProperty,
   type BuildingRecord,
   type PropertyRecord,
 } from "../services/master-data.service";
@@ -69,6 +70,74 @@ export function BuildingsManagementPanel({
   const [shopMobile, setShopMobile] = useState("");
   const [shopLocationNote, setShopLocationNote] = useState("");
   const [submittingShop, setSubmittingShop] = useState(false);
+
+  // Edit Property Modal State (Flat & Shop)
+  const [editingProperty, setEditingProperty] = useState<PropertyRecord | null>(null);
+  const [editUnit, setEditUnit] = useState("");
+  const [editFloor, setEditFloor] = useState("");
+  const [editOwner, setEditOwner] = useState("");
+  const [editMobile, setEditMobile] = useState("");
+  const [editShopName, setEditShopName] = useState("");
+  const [submittingEdit, setSubmittingEdit] = useState(false);
+
+  const handleOpenEditFlat = (flat: PropertyRecord, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingProperty(flat);
+    setEditUnit(flat.unitNumber || flat.flatNumber || "");
+    setEditFloor(
+      flat.floorNumber !== null && flat.floorNumber !== undefined
+        ? String(flat.floorNumber)
+        : ""
+    );
+    setEditOwner(flat.ownerName || "");
+    setEditMobile(flat.contactMobile || "");
+    setEditShopName("");
+  };
+
+  const handleOpenEditShop = (shop: PropertyRecord, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingProperty(shop);
+    setEditShopName(shop.shopName || "");
+    setEditOwner(shop.ownerName || "");
+    setEditMobile(shop.contactMobile || "");
+    setEditUnit("");
+    setEditFloor("");
+  };
+
+  const handleSaveEditProperty = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingProperty) return;
+    setSubmittingEdit(true);
+    try {
+      if (editingProperty.propertyType === "commercial") {
+        if (!editShopName.trim()) return;
+        await updateProperty({
+          propertyId: editingProperty.id,
+          shopName: editShopName.trim(),
+          ownerName: editOwner.trim() || undefined,
+          contactMobile: editMobile.trim() || undefined,
+        });
+        await loadShops();
+      } else {
+        if (!editUnit.trim()) return;
+        await updateProperty({
+          propertyId: editingProperty.id,
+          unitNumber: editUnit.trim(),
+          floorNumber: editFloor ? parseInt(editFloor, 10) : null,
+          ownerName: editOwner.trim() || undefined,
+          contactMobile: editMobile.trim() || undefined,
+        });
+        if (selectedBuilding) {
+          await loadFlats(selectedBuilding);
+        }
+      }
+      setEditingProperty(null);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Failed to update property");
+    } finally {
+      setSubmittingEdit(false);
+    }
+  };
 
   const loadBuildings = async () => {
     if (!organizationId) return;
@@ -465,6 +534,7 @@ export function BuildingsManagementPanel({
                         {floorFlats.map((flat) => (
                           <div
                             key={flat.id}
+                            data-testid={`admin-flat-card-${flat.id}`}
                             onClick={() => onStartCollection && onStartCollection(selectedBuilding, flat)}
                             className="p-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100/80 transition-all cursor-pointer flex flex-col justify-between min-h-[64px]"
                           >
@@ -472,9 +542,20 @@ export function BuildingsManagementPanel({
                               <span className="text-sm font-extrabold text-slate-900">
                                 Flat {flat.unitNumber}
                               </span>
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
-                                Recorded
-                              </span>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  data-testid={`btn-edit-flat-${flat.id}`}
+                                  title="Edit flat details"
+                                  onClick={(e) => handleOpenEditFlat(flat, e)}
+                                  className="text-[11px] text-slate-500 hover:text-slate-900 p-1 rounded hover:bg-slate-200/60 cursor-pointer"
+                                >
+                                  ✏️
+                                </button>
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                                  Recorded
+                                </span>
+                              </div>
                             </div>
 
                             {flat.ownerName ? (
@@ -666,19 +747,30 @@ export function BuildingsManagementPanel({
                     <h4 className="text-sm font-bold text-slate-900 group-hover:text-orange-600 transition-colors">
                       🏪 {s.shopName}
                     </h4>
-                    {onStartCollection && (
+                    <div className="flex items-center gap-1">
                       <button
                         type="button"
-                        data-testid={`btn-collect-admin-shop-${s.id}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onStartCollection(null, s);
-                        }}
-                        className="text-[11px] font-bold px-2 py-0.5 rounded-lg bg-orange-600 hover:bg-orange-700 text-white transition-colors cursor-pointer"
+                        data-testid={`btn-edit-shop-${s.id}`}
+                        title="Edit shop details"
+                        onClick={(e) => handleOpenEditShop(s, e)}
+                        className="text-[11px] text-slate-500 hover:text-slate-900 p-1 rounded hover:bg-slate-200/60 cursor-pointer"
                       >
-                        ⚡ पावती / Collect
+                        ✏️
                       </button>
-                    )}
+                      {onStartCollection && (
+                        <button
+                          type="button"
+                          data-testid={`btn-collect-admin-shop-${s.id}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onStartCollection(null, s);
+                          }}
+                          className="text-[11px] font-bold px-2 py-0.5 rounded-lg bg-orange-600 hover:bg-orange-700 text-white transition-colors cursor-pointer"
+                        >
+                          ⚡ पावती / Collect
+                        </button>
+                      )}
+                    </div>
                   </div>
                   {s.ownerName && (
                     <p className="text-xs text-slate-600">👤 {s.ownerName}</p>
@@ -1005,6 +1097,134 @@ export function BuildingsManagementPanel({
                   className="bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs h-9"
                 >
                   {submittingShop ? "Saving..." : "Create Shop"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* -------------------------------------------------------------
+          MODAL: EDIT PROPERTY (FLAT OR SHOP)
+      -------------------------------------------------------------- */}
+      {editingProperty && (
+        <div
+          data-testid="edit-property-modal"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in"
+        >
+          <div className="w-full max-w-md rounded-2xl bg-card border p-5 sm:p-6 shadow-xl space-y-4 animate-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b">
+              <div>
+                <h3 className="text-base font-extrabold text-foreground">
+                  {editingProperty.propertyType === "commercial"
+                    ? "Edit Commercial Shop (दुकान दुरुस्त करा)"
+                    : `Edit Flat ${editingProperty.unitNumber || ""} (फ्लॅट दुरुस्त करा)`}
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Admin update — does not alter existing receipts
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingProperty(null)}
+                className="text-muted-foreground hover:text-foreground text-sm font-semibold p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditProperty} className="space-y-3.5">
+              {editingProperty.propertyType === "commercial" ? (
+                <div className="space-y-1">
+                  <Label htmlFor="edit-shop-name" className="text-xs font-bold">Shop Name (दुकानाचे नाव) *</Label>
+                  <Input
+                    id="edit-shop-name"
+                    required
+                    placeholder="e.g. Om Sai Medicals"
+                    value={editShopName}
+                    onChange={(e) => setEditShopName(e.target.value)}
+                    className="text-xs h-9 font-bold"
+                    autoFocus
+                  />
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="edit-flat-unit" className="text-xs font-bold">Flat Number (फ्लॅट क्रमांक) *</Label>
+                    <Input
+                      id="edit-flat-unit"
+                      required
+                      placeholder="e.g. 402"
+                      value={editUnit}
+                      onChange={(e) => setEditUnit(e.target.value)}
+                      className="text-xs h-9 font-bold"
+                      autoFocus
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label htmlFor="edit-flat-floor" className="text-xs font-bold">Floor Number (मजला)</Label>
+                    <Input
+                      id="edit-flat-floor"
+                      type="number"
+                      placeholder="e.g. 4"
+                      value={editFloor}
+                      onChange={(e) => setEditFloor(e.target.value)}
+                      className="text-xs h-9"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-1">
+                <Label htmlFor="edit-prop-owner" className="text-xs font-bold">
+                  {editingProperty.propertyType === "commercial"
+                    ? "Owner / Contact Person (मालकाचे नाव)"
+                    : "Resident / Owner Name (रहिवाशाचे नाव)"}
+                </Label>
+                <Input
+                  id="edit-prop-owner"
+                  placeholder="e.g. Rajesh Patil"
+                  value={editOwner}
+                  onChange={(e) => setEditOwner(e.target.value)}
+                  className="text-xs h-9"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="edit-prop-mobile" className="text-xs font-bold">Contact Mobile (मोबाईल)</Label>
+                <Input
+                  id="edit-prop-mobile"
+                  type="tel"
+                  placeholder="e.g. 9820112233"
+                  value={editMobile}
+                  onChange={(e) => setEditMobile(e.target.value)}
+                  className="text-xs h-9"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setEditingProperty(null)}
+                  className="text-xs h-9"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={
+                    submittingEdit ||
+                    (editingProperty.propertyType === "commercial"
+                      ? !editShopName.trim()
+                      : !editUnit.trim())
+                  }
+                  size="sm"
+                  className="bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs h-9"
+                >
+                  {submittingEdit ? "Saving..." : "Save Changes (बदल जतन करा)"}
                 </Button>
               </div>
             </form>

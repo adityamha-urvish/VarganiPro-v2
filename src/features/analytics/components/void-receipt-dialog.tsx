@@ -134,7 +134,7 @@ export function VoidReceiptDialog({
           <div className="flex justify-between items-center">
             <span className="text-muted-foreground">पेमेंट पद्धत (Mode):</span>
             <span className="font-semibold text-foreground capitalize">
-              {receipt.paymentMode.replace("_", " ")}
+              {(receipt.paymentMode || (receipt as any).payment_mode || "cash").replace("_", " ")}
             </span>
           </div>
         </div>

@@ -3,6 +3,7 @@ import { supabase } from "@/supabase/client";
 
 import {
   loadCurrentCollectionSession,
+  switchSessionReceiptBook,
 } from "@/features/collection/services/collection-session.service";
 import type { LocalReceipt } from "@/lib/offline/offline-db";
 import { setupAutoSync } from "@/lib/offline/receipt-sync";
@@ -47,6 +48,7 @@ import { useReceiptCreation } from "../hooks/use-receipt-creation";
 import { useReceiptHistory } from "../hooks/use-receipt-history";
 import { useStartCollection } from "../hooks/use-start-collection";
 import { useDashboardNavigation } from "../hooks/use-dashboard-navigation";
+import { normalizeSearchReceiptToLocalReceipt } from "@/features/analytics/utils/receipt-formatter";
 import { useVolunteerHandover } from "../hooks/use-volunteer-handover";
 import { printReceipt } from "../utils/print-receipt";
 import {
@@ -62,6 +64,7 @@ export function DashboardPage() {
 
   const [volunteerSubView, setVolunteerSubView] = useState<"home" | "buildings" | "history" | "handover" | "session">("home");
   const [isMandalQrOpen, setIsMandalQrOpen] = useState<boolean>(false);
+  const [switchingBook, setSwitchingBook] = useState<boolean>(false);
   const [receiptToView, setReceiptToView] =
     useState<LocalReceipt | null>(null);
   const [activeConfirmationReceipt, setActiveConfirmationReceipt] = useState<{
@@ -158,6 +161,34 @@ export function DashboardPage() {
       nav.openCollectMode();
     },
   });
+
+  const handleSwitchReceiptBook = async (newBookId: string) => {
+    if (!session || !newBookId || switchingBook) return;
+    setSwitchingBook(true);
+    try {
+      const updatedSession = await switchSessionReceiptBook(
+        session.sessionId,
+        newBookId
+      );
+      setSession(updatedSession);
+      await ensureOfflineBookState(updatedSession);
+      await loadReceiptHistory(
+        updatedSession.receiptBookId,
+        updatedSession.sessionId
+      );
+      if (updatedSession.eventId) {
+        await loadAvailableBooks(updatedSession.eventId);
+      }
+    } catch (err: unknown) {
+      alert(
+        err instanceof Error
+          ? err.message
+          : "Failed to switch receipt book"
+      );
+    } finally {
+      setSwitchingBook(false);
+    }
+  };
 
   const effectiveEventId =
     session?.eventId || selectedEventId || availableEvents[0]?.id || null;
@@ -861,6 +892,9 @@ export function DashboardPage() {
                               onPaymentReferenceChange={setPaymentReference}
                               onNotesChange={setNotes}
                               onSubmit={handleCreateReceipt}
+                              availableBooks={availableBooks.filter((b) => b.id !== session?.receiptBookId)}
+                              onSwitchReceiptBook={handleSwitchReceiptBook}
+                              switchingBook={switchingBook}
                             />
                           )}
 
@@ -1102,6 +1136,9 @@ export function DashboardPage() {
                         onPaymentReferenceChange={setPaymentReference}
                         onNotesChange={setNotes}
                         onSubmit={handleCreateReceipt}
+                        availableBooks={availableBooks.filter((b) => b.id !== session?.receiptBookId)}
+                        onSwitchReceiptBook={handleSwitchReceiptBook}
+                        switchingBook={switchingBook}
                       />
                     </div>
                   )}
@@ -1131,7 +1168,36 @@ export function DashboardPage() {
                     />
                   )}
 
-                  {selectedBuilding ? (
+                  {volunteerSubView === "session" ? (
+                    <div className="space-y-4 animate-in fade-in">
+                      <div className="pb-2 border-b">
+                        <button
+                          type="button"
+                          onClick={() => setVolunteerSubView("home")}
+                          className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-slate-950 bg-white border border-slate-200/80 px-3 py-1.5 rounded-xl shadow-2xs cursor-pointer"
+                        >
+                          <span>←</span>
+                          <span>मुख्य पृष्ठ (Home)</span>
+                        </button>
+                      </div>
+
+                      <SessionSummaryCard
+                        session={session}
+                        receiptCount={issuedReceipts.length}
+                        totalAmount={totalAmount}
+                        pendingCount={pendingReceipts.length}
+                        conflictCount={conflictReceipts.length}
+                        cashAmount={cashAmount}
+                        upiAmount={upiAmount}
+                        chequeAmount={chequeAmount}
+                        bankTransferAmount={bankTransferAmount}
+                        closingSession={closingSession}
+                        sessionCloseError={sessionCloseError}
+                        sessionCloseMessage={sessionCloseMessage}
+                        onCloseSession={() => void handleCloseSession()}
+                      />
+                    </div>
+                  ) : selectedBuilding ? (
                     <div className="space-y-4 animate-in fade-in">
                       <div className="flex items-center justify-between pb-2 border-b">
                         <button
@@ -1210,6 +1276,7 @@ export function DashboardPage() {
                         endNumber={session.endNumber}
                         onNavigateToCloseSession={() => {
                           setSelectedBuilding(null);
+                          setVolunteerSubView("session");
                         }}
                         onPropertyIdChange={setPropertyId}
                         onDonorNameChange={setDonorName}
@@ -1219,6 +1286,9 @@ export function DashboardPage() {
                         onPaymentReferenceChange={setPaymentReference}
                         onNotesChange={setNotes}
                         onSubmit={handleCreateReceipt}
+                        availableBooks={availableBooks.filter((b) => b.id !== session?.receiptBookId)}
+                        onSwitchReceiptBook={handleSwitchReceiptBook}
+                        switchingBook={switchingBook}
                       />
 
                       <LastCreatedReceiptCard
@@ -1343,7 +1413,9 @@ export function DashboardPage() {
             <ReceiptSearchPanel
               eventId={session?.eventId || null}
               onViewReceipt={(receipt) =>
-                setReceiptToView(receipt as LocalReceipt)
+                setReceiptToView(
+                  normalizeSearchReceiptToLocalReceipt(receipt) as unknown as LocalReceipt
+                )
               }
               onNavigateToBuilding={(buildingId) => {
                 handleTabChange("collection");
@@ -1607,6 +1679,9 @@ export function DashboardPage() {
         onSubmitReceipt={submitFastReceipt}
         onOpenPendingDrawer={() => setIsPendingDrawerOpen(true)}
         onShowMandalQr={() => setIsMandalQrOpen(true)}
+        availableBooks={availableBooks.filter((b) => b.id !== session?.receiptBookId)}
+        onSwitchReceiptBook={handleSwitchReceiptBook}
+        switchingBook={switchingBook}
       />
 
       {/* Global Mandal QR Modal */}

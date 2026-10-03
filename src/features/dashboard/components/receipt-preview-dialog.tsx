@@ -83,9 +83,16 @@ export function ReceiptPreviewDialog({
   const displayVoidedAt =
     localVoidedState?.voidedAt || receipt.voidedAt || null;
 
-  const effectivePrefix = (receipt as unknown as { receiptPrefix?: string }).receiptPrefix || receiptPrefix;
+  const effectivePrefix =
+    (receipt as unknown as { receiptPrefix?: string }).receiptPrefix ||
+    (receipt as unknown as { receipt_prefix?: string }).receipt_prefix ||
+    receiptPrefix;
+  const safeReceiptNumber =
+    receipt.receiptNumber ??
+    (receipt as unknown as { receipt_number?: number }).receipt_number ??
+    0;
   const formattedCode = formatReceiptCode({
-    receiptNumber: receipt.receiptNumber,
+    receiptNumber: safeReceiptNumber,
     receiptPrefix: effectivePrefix,
   });
 
@@ -349,8 +356,8 @@ export function ReceiptPreviewDialog({
               <div className="mt-6 border-y py-4">
                 <p className="text-sm text-muted-foreground">Receipt Number</p>
                 <p className="mt-1 text-3xl font-bold">
-                  {receiptPrefix}
-                  {receipt.receiptNumber}
+                  {effectivePrefix}
+                  {safeReceiptNumber}
                 </p>
               </div>
             </div>
@@ -513,16 +520,20 @@ export function ReceiptPreviewDialog({
             ? ({
                 id: (receipt as ExtendedReceipt).id || receipt.clientReceiptId,
                 clientReceiptId: receipt.clientReceiptId,
-                receiptNumber: receipt.receiptNumber,
+                receiptNumber: safeReceiptNumber,
                 amount: receipt.amount,
-                donorName: receipt.donorName,
-                donorMobile: receipt.donorMobile,
-                paymentMode: receipt.paymentMode,
+                donorName: receipt.donorName ?? (receipt as any).donor_name ?? "",
+                donorMobile: receipt.donorMobile ?? (receipt as any).donor_mobile ?? null,
+                paymentMode:
+                  receipt.paymentMode ||
+                  (receipt as any).payment_mode ||
+                  "cash",
+                unitNumber: receipt.unitNumber ?? (receipt as any).unit_number ?? null,
                 status: receipt.status,
               } as VoidReceiptTarget)
             : null
         }
-        receiptPrefix={receiptPrefix}
+        receiptPrefix={effectivePrefix}
         isOpen={isVoidDialogOpen}
         onClose={() => setIsVoidDialogOpen(false)}
         onSuccess={handleVoidSuccess}

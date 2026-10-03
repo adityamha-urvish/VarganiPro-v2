@@ -28,6 +28,21 @@ export interface FastReceiptModalProps {
   }) => Promise<void>;
   onOpenPendingDrawer: () => void;
   onShowMandalQr?: () => void;
+  availableBooks?: Array<{
+    id: string;
+    bookNumber?: string;
+    book_number?: string;
+    prefix: string;
+    startNumber?: number;
+    start_number?: number;
+    endNumber?: number;
+    end_number?: number;
+    currentNumber?: number | null;
+    current_number?: number | null;
+    status: string;
+  }>;
+  onSwitchReceiptBook?: (bookId: string) => Promise<void>;
+  switchingBook?: boolean;
 }
 
 export function FastReceiptModal({
@@ -47,7 +62,11 @@ export function FastReceiptModal({
   onSubmitReceipt,
   onOpenPendingDrawer,
   onShowMandalQr,
+  availableBooks = [],
+  onSwitchReceiptBook,
+  switchingBook = false,
 }: FastReceiptModalProps) {
+  const [selectedNextBookId, setSelectedNextBookId] = useState<string>("");
   const [amount, setAmount] = useState<string>("501");
   const [paymentMode, setPaymentMode] = useState<PaymentMode>("cash");
   const [paymentReference, setPaymentReference] = useState<string>("");
@@ -212,10 +231,55 @@ export function FastReceiptModal({
                   पावती क्रमांक #{startNumber ?? "—"}–#{endNumber ?? "—"} पर्यंत सर्व पावत्या वापरल्या आहेत.
                 </p>
                 <p className="text-xs text-amber-800 dark:text-amber-300">
-                  All receipts in this book have been issued. Please close this collection session and complete the handover before starting with another receipt book.
+                  All receipts in this book have been issued. You can continue collecting with your next assigned book or close this collection session.
                 </p>
               </div>
             </div>
+
+            {availableBooks.length > 0 && onSwitchReceiptBook && (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 dark:bg-slate-800/60 p-3.5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <h5 className="text-xs font-bold text-slate-800 dark:text-slate-100">
+                    📖 पुढील पावती पुस्तक निवडा (Select Next Book)
+                  </h5>
+                  <span className="text-[10px] text-emerald-700 dark:text-emerald-300 font-bold">
+                    सत्र चालू राहील (Same Session)
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  <select
+                    data-testid="select-next-receipt-book"
+                    value={selectedNextBookId}
+                    onChange={(e) => setSelectedNextBookId(e.target.value)}
+                    className="w-full h-10 text-xs rounded-xl border bg-white dark:bg-slate-900 px-3 font-medium text-slate-900 dark:text-slate-100"
+                  >
+                    <option value="">-- पावती पुस्तक निवडा --</option>
+                    {availableBooks.map((b) => {
+                      const bookNum = b.bookNumber ?? (b as any).book_number ?? "";
+                      const curNum = b.currentNumber ?? (b as any).current_number ?? (b.startNumber ?? (b as any).start_number ?? 0);
+                      const endNum = b.endNumber ?? (b as any).end_number ?? 0;
+                      return (
+                        <option key={b.id} value={b.id}>
+                          Book {bookNum} ({b.prefix || ""}#{curNum}–#{endNum})
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <Button
+                    type="button"
+                    data-testid="btn-switch-receipt-book"
+                    disabled={!selectedNextBookId || switchingBook}
+                    onClick={async () => {
+                      if (!selectedNextBookId) return;
+                      await onSwitchReceiptBook(selectedNextBookId);
+                    }}
+                    className="w-full h-10 rounded-xl text-xs font-bold bg-primary text-primary-foreground shadow-xs cursor-pointer"
+                  >
+                    {switchingBook ? "पुस्तक बदलत आहे..." : "⚡ हे पुस्तक जोडा / Switch to this Book"}
+                  </Button>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2 pt-2">
               {onNavigateToCloseSession && (

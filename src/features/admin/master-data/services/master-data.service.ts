@@ -389,3 +389,44 @@ export async function setActiveEvent(
     };
   }
 }
+
+export async function updateProperty(params: {
+  propertyId: string;
+  unitNumber?: string;
+  floorNumber?: number | null;
+  ownerName?: string;
+  contactMobile?: string;
+  shopName?: string;
+}): Promise<{
+  success: boolean;
+  propertyId: string;
+  unitNumber?: string;
+  floorNumber?: number | null;
+  ownerName?: string;
+  contactMobile?: string;
+  shopName?: string;
+}> {
+  const { data, error } = await supabase.rpc("update_property", {
+    p_property_id: params.propertyId,
+    p_unit_number: params.unitNumber?.trim() || null,
+    p_floor_number: params.floorNumber ?? null,
+    p_owner_name: params.ownerName?.trim() || null,
+    p_contact_mobile: params.contactMobile?.trim() || null,
+    p_shop_name: params.shopName?.trim() || null,
+  });
+
+  if (error) {
+    console.error("updateProperty error:", error);
+    throw new Error(error.message || "Failed to update property");
+  }
+
+  return {
+    success: true,
+    propertyId: data?.property_id || params.propertyId,
+    unitNumber: data?.unit_number,
+    floorNumber: data?.floor_number,
+    ownerName: data?.owner_name,
+    contactMobile: data?.contact_mobile,
+    shopName: data?.shop_name,
+  };
+}
